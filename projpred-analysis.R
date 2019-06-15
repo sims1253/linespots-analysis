@@ -39,10 +39,10 @@ d = read_delim('data.csv',
 )
 
 ls.df = subset(d, d$Algorithm == "Linespots")
-pred.df = tibble(ls.df$Commits, ls.df$Domain, ls.df$LOC, ls.df$Origin, ls.df$Project, ls.df$Source, ls.df)
+
 n = 294 # Rows in the ls.df frame
 D = 4 # Predictors in the model
-p0 = 3  # Prior for the ideal number of predictors
+p0 = 2  # Prior for the ideal number of predictors
 tau0 = p0/(D-p0) * 1/sqrt(n)
 prior_coeff = hs(global_scale = tau0, slab_scale = 1) # horseshoe prior with the magic
 
