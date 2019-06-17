@@ -4,6 +4,8 @@ library(bayesplot)
 library(rstanarm)
 options(mc.cores = parallel::detectCores())
 
+SEED = 4082 # I asked my girlfriend for a number
+
 #setwd('.../linespots-analysis')
 
 d = read_delim('data.csv',
@@ -37,10 +39,10 @@ d = read_delim('data.csv',
                )
 )
 
-# Moving to log scale and standardizing
-d$Commits = (log(d$Commits) - mean(log(d$Commits))) / sd(log(d$Commits))
-d$LOC = (log(d$LOC) - mean(log(d$LOC))) / sd(log(d$LOC))
-d$Origin = (log(d$Origin) - mean(log(d$Origin))) / sd(log(d$Origin))
+# Standardizing
+d$Commits = (d$Commits - mean(d$Commits)) / sd(d$Commits)
+d$LOC = (d$LOC - mean(d$LOC)) / sd(d$LOC)
+d$Origin = (d$Origin - mean(d$Origin)) / sd(d$Origin)
 
 
 # For rq1 and 2 we are only interested in Linespots
@@ -58,48 +60,52 @@ aucec = matrix(as.numeric(unlist(aucec)),nrow=nrow(aucec))
 
 ls.data = tibble(predictors, exam, aucec)
 
-n = 294 # Rows in the ls.df frame
-D = 9 # Predictors in the model, Algorithm is left out as we only look at Linespots
+n = nrow(ls.data) # Rows in ls.data
+D = ncol(predictors) # Predictors in the model, Algorithm is left out as we only look at Linespots
 p0 = 3  # Prior for the ideal number of predictors
 tau0 = p0/(D-p0) * 1/sqrt(n)
 prior_coeff = hs(global_scale = tau0, slab_scale = 1) # horseshoe prior with the magic
 
-# Splitting these up, as the models wouldn't converge with too many predictors
-# So far I haven't gotten this to work due to model building problems.
+
 projpred1 = stan_glm(exam ~ predictors,
                     family = gaussian(), data=ls.data, prior = prior_coeff,
-                    chains = 4, iter = 2000)
+                    chains = 4, iter = 2000, seed = SEED)
+summary(projpred1) # Rhat and n_eff look good
 
-projpred2 = stan_glm(aucec ~ predictors,
-                     family = gaussian(), data = ls.data, prior = prior_coeff,
-                     chains = 4, iter = 2000)
-
-
-vs1 = varsel(projpred1, method='forward')
+vs1 = varsel(projpred1, method = 'forward')
 vs1$vind
-varsel_plot(vs1, stats=c('elpd', 'rmse'))
+suggest_size(vs1)
 cvs1 = cv_varsel(projpred1, method = 'forward')
+cvs1$vind
 suggest_size(cvs1)
 varsel_plot(cvs1, stats = c('elpd', 'rmse'), deltas=T)
 
-mcmc_areas(as.matrix(projpred1),
-           pars = c(names(cvs1$vind[1:4]))) + coord_cartesian(xlim = c(-0.1, 0.1))
+mcmc_areas(as.matrix(projpred1), pars = c('(Intercept)', names(cvs1$vind[1:suggest_size(cvs1)]), 'sigma'))
+# Based on this, the exam score for the linespots algorithm is best predicted by:
+# LOC, Choice and Source. The simple varsel also proposes project as a fourth predictor.
 
-vs2 = varsel(projpred2, method='forward')
+
+projpred2 = stan_glm(aucec ~ predictors,
+                     family = gaussian(), data = ls.data, prior = prior_coeff,
+                     chains = 4, iter = 2000, seed = SEED)
+summary(projpred2) # Rhat and n_eff look good
+
+vs2 = varsel(projpred2, method = 'forward')
 vs2$vind
-varsel_plot(vs2, stats=c('elpd', 'rmse'))
+suggest_size(vs2)
 cvs2 = cv_varsel(projpred2, method = 'forward')
+cvs2$vind
 suggest_size(cvs2)
 varsel_plot(cvs2, stats = c('elpd', 'rmse'), deltas=T)
 
-mcmc_areas(as.matrix(projpred2),
-           pars = c(names(cvs2$vind[1:4]))) + coord_cartesian(xlim = c(-0.1, 0.1))
-
+mcmc_areas(as.matrix(projpred2), pars = c('(Intercept)', names(cvs2$vind[1:suggest_size(cvs2)]), 'sigma'))
+# Based on this, the aucec score for the linespots algorithm is best predicted by using all predictors.
+# This seems wrong and the mcmc_areas plot shows, that only Origin, Loc and Source have most of their
+# areas not overlapping with 0. Thus we conclude that those three are the most valuable predictors.
 
 
 # For the fourth research question we need both linespots and bugspots
-
-predictors = tibble(d$Commits, d$Domain, d$LOC, d$Origin, d$Project, d$Source, d$Choice, d$Time, d$Weighting)
+predictors = tibble(d$Algorithm, d$Commits, d$Domain, d$LOC, d$Origin, d$Project, d$Source, d$Choice, d$Time, d$Weighting)
 predictors = matrix(as.numeric(unlist(predictors)),nrow=nrow(predictors))
 
 exam = tibble(d$EXAM)
@@ -110,8 +116,8 @@ aucec = matrix(as.numeric(unlist(aucec)),nrow=nrow(aucec))
 
 bs.data = tibble(predictors, exam, aucec)
 
-n = 588 # Rows in the d frame
-D = 10 # Predictors in the model
+n = nrow(bs.data) # Rows in the d frame
+D = ncol(predictors) # Predictors in the model
 p0 = 3  # Prior for the ideal number of predictors
 tau0 = p0/(D-p0) * 1/sqrt(n)
 prior_coeff = hs(global_scale = tau0, slab_scale = 1) # horseshoe prior with the magic
@@ -120,28 +126,33 @@ prior_coeff = hs(global_scale = tau0, slab_scale = 1) # horseshoe prior with the
 # So far I haven't gotten this to work due to model building problems.
 projpred3 = stan_glm(exam ~ predictors,
                     family = gaussian(), data=bs.data, prior = prior_coeff,
-                    chains = 4, iter = 2000)
+                    chains = 4, iter = 2000, seed = SEED)
+summary(projpred3) # Rhat and n_eff look good
 
-projpred4 = stan_glm(aucec ~ predictors,
-                     family = gaussian(), data = bs.data, prior = prior_coeff,
-                     chains = 4, iter = 2000)
-
-vs3 = varsel(projpred3, method='forward')
+vs3 = varsel(projpred3, method = 'forward')
 vs3$vind
-varsel_plot(vs3, stats=c('elpd', 'rmse'))
+suggest_size(vs3)
 cvs3 = cv_varsel(projpred3, method = 'forward')
+cvs3$vind
 suggest_size(cvs3)
 varsel_plot(cvs3, stats = c('elpd', 'rmse'), deltas=T)
 
-mcmc_areas(as.matrix(projpred3),
-           pars = c(names(cvs3$vind[1:4]))) + coord_cartesian(xlim = c(-0.1, 0.1))
+mcmc_areas(as.matrix(projpred3), pars = c('(Intercept)', names(cvs3$vind[1:suggest_size(cvs3)]), 'sigma'))
+# Going with 5 predictors, as the cross validated varsel proposes, the best predictors for overall exam
+# score in the dataset are: Algorithm, LOC, Choice, Origin, Project
 
-vs1 = varsel(projpred4, method='forward')
+
+projpred4 = stan_glm(aucec ~ predictors,
+                     family = gaussian(), data = bs.data, prior = prior_coeff,
+                     chains = 4, iter = 2000, seed = SEED)
+summary(projpred4) # Rhat and n_eff look good
+
+vs4 = varsel(projpred4, method = 'forward')
 vs4$vind
-varsel_plot(vs4, stats=c('elpd', 'rmse'))
+suggest_size(vs4)
 cvs4 = cv_varsel(projpred4, method = 'forward')
 suggest_size(cvs4)
 varsel_plot(cvs4, stats = c('elpd', 'rmse'), deltas=T)
 
-mcmc_areas(as.matrix(projpred4),
-           pars = c(names(cvs4$vind[1:4]))) + coord_cartesian(xlim = c(-0.1, 0.1))
+mcmc_areas(as.matrix(projpred4), pars = c('(Intercept)', names(cvs4$vind[1:suggest_size(cvs4)]), 'sigma'))
+# The cv varsel proposes the four predictors: LOC, Origin, Project, Source as the best to predict overall aucec
