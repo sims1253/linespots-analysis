@@ -15,19 +15,24 @@ d = read_delim('data.csv',
                col_types = cols(
                  AUCEC = col_double(),
                  Algorithm = col_factor(),
+                 Choice = col_factor(),
                  Commits = col_double(),
                  Depth = col_double(),
                  Domain = col_factor(),
                  EXAM = col_double(),
+                 EXAM25 = col_double(),
+                 EXAM33 = col_double(),
+                 EXAM50 = col_double(),
                  FixCount = col_double(),
                  Fixed = col_double(),
+                 FullExam = col_guess(),
                  Future = col_double(),
+                 ID = col_factor(),
                  LOC = col_double(),
                  Missed = col_double(),
                  Origin = col_double(),
                  Project = col_factor(),
                  Source = col_factor(),
-                 Choice = col_factor(),
                  Time = col_factor(),
                  Weighting = col_factor(),
                  fn = col_double(),
@@ -82,7 +87,7 @@ varsel_plot(cvs1, stats = c('elpd', 'rmse'), deltas=T)
 
 mcmc_areas(as.matrix(projpred1), pars = c('(Intercept)', names(cvs1$vind[1:suggest_size(cvs1)]), 'sigma'))
 # Based on this, the exam score for the linespots algorithm is best predicted by:
-# LOC, Choice and Source. The simple varsel also proposes project as a fourth predictor.
+# Origin, LOC, Choice, Source.
 
 
 projpred2 = stan_glm(aucec ~ predictors,
@@ -100,8 +105,8 @@ varsel_plot(cvs2, stats = c('elpd', 'rmse'), deltas=T)
 
 mcmc_areas(as.matrix(projpred2), pars = c('(Intercept)', names(cvs2$vind[1:suggest_size(cvs2)]), 'sigma'))
 # Based on this, the aucec score for the linespots algorithm is best predicted by using all predictors.
-# This seems wrong and the mcmc_areas plot shows, that only Origin, Loc and Source have most of their
-# areas not overlapping with 0. Thus we conclude that those three are the most valuable predictors.
+# This seems wrong and the mcmc_areas plot shows, that only Origin, and Domain have no overlap with 0,
+# while LOX and Choice have only small overlaps with 0. Basedon this, we count those four predictors as the best ones.
 
 
 # For the fourth research question we need both linespots and bugspots
@@ -139,7 +144,7 @@ varsel_plot(cvs3, stats = c('elpd', 'rmse'), deltas=T)
 
 mcmc_areas(as.matrix(projpred3), pars = c('(Intercept)', names(cvs3$vind[1:suggest_size(cvs3)]), 'sigma'))
 # Going with 5 predictors, as the cross validated varsel proposes, the best predictors for overall exam
-# score in the dataset are: Algorithm, LOC, Choice, Origin, Project
+# score in the dataset are: Algorithm, LOC, Commits, Choice, Source
 
 
 projpred4 = stan_glm(aucec ~ predictors,
@@ -151,8 +156,9 @@ vs4 = varsel(projpred4, method = 'forward')
 vs4$vind
 suggest_size(vs4)
 cvs4 = cv_varsel(projpred4, method = 'forward')
+cvs4$vind
 suggest_size(cvs4)
 varsel_plot(cvs4, stats = c('elpd', 'rmse'), deltas=T)
 
 mcmc_areas(as.matrix(projpred4), pars = c('(Intercept)', names(cvs4$vind[1:suggest_size(cvs4)]), 'sigma'))
-# The cv varsel proposes the four predictors: LOC, Origin, Project, Source as the best to predict overall aucec
+# The cv varsel proposes the six predictors: Domain, Origin, Algorithm, LOC, Choice, Commits
