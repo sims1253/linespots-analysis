@@ -6,26 +6,31 @@ options(mc.cores = parallel::detectCores())
 
 #setwd('.../linespots-analysis')
 
-d = read_delim('../data.csv',
+d = read_delim('data.csv',
                delim = ",",
                locale = locale(decimal_mark = "."),
                col_names = TRUE,
                col_types = cols(
                  AUCEC = col_double(),
                  Algorithm = col_factor(),
+                 Choice = col_factor(),
                  Commits = col_double(),
                  Depth = col_double(),
                  Domain = col_factor(),
                  EXAM = col_double(),
+                 EXAM25 = col_double(),
+                 EXAM33 = col_double(),
+                 EXAM50 = col_double(),
                  FixCount = col_double(),
                  Fixed = col_double(),
+                 FullExam = col_guess(),
                  Future = col_double(),
+                 ID = col_factor(),
                  LOC = col_double(),
                  Missed = col_double(),
                  Origin = col_double(),
                  Project = col_factor(),
                  Source = col_factor(),
-                 Choice = col_factor(),
                  Time = col_factor(),
                  Weighting = col_factor(),
                  fn = col_double(),
@@ -34,7 +39,6 @@ d = read_delim('../data.csv',
                  hdMaxLOC = col_double(),
                  tn = col_double(),
                  tp = col_double()
-                 
                )
 )
 
