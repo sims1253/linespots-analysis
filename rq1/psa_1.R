@@ -64,4 +64,4 @@ sensitivity(10, 0.1, 0.1, 0.01) # Looks smoother
 sensitivity(10, 0.01, 0.01, 0.01) # Looks very smooth with all three combined.
 # This might actually be too flat so lets try  another one
 sensitivity(10, 0.05, 0.05, 0.05)
-# This looks like a good middle ground. Some 
+# This looks like a good middle ground. 

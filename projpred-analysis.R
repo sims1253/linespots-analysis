@@ -127,8 +127,7 @@ p0 = 3  # Prior for the ideal number of predictors
 tau0 = p0/(D-p0) * 1/sqrt(n)
 prior_coeff = hs(global_scale = tau0, slab_scale = 1) # horseshoe prior with the magic
 
-# Splitting these up, as the models wouldn't converge with too many predictors
-# So far I haven't gotten this to work due to model building problems.
+
 projpred3 = stan_glm(exam ~ predictors,
                     family = gaussian(), data=bs.data, prior = prior_coeff,
                     chains = 4, iter = 2000, seed = SEED)
