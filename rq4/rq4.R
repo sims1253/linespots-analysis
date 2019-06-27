@@ -610,6 +610,16 @@ m3.1 = brm(
   control = list(adapt_delta=0.99),
   seed = SEED
 )
+summary(m3.1)
+
+np = nuts_params(m3.1)
+lp = log_posterior(m3.1)
+mcmc_nuts_acceptance(np, lp)
+mcmc_nuts_divergence(np, lp)
+mcmc_nuts_stepsize(np, lp)
+mcmc_nuts_treedepth(np, lp)
+mcmc_nuts_energy(np, lp)
+# Looks good to me but has low Eff.Sample
 
 # Here we can use the same priors as for rq1 and rq2
 m3.2 = brm(
@@ -630,6 +640,38 @@ m3.2 = brm(
   control = list(adapt_delta=0.99),
   seed = SEED
 )
+summary(m3.2)
+plot(m3.2)
+np = nuts_params(m3.2)
+lp = log_posterior(m3.2)
+mcmc_nuts_acceptance(np, lp)
+mcmc_nuts_divergence(np, lp)
+mcmc_nuts_stepsize(np, lp)
+mcmc_nuts_treedepth(np, lp)
+mcmc_nuts_energy(np, lp)
+# This seems to sample just good enough
+
+loo3.1 = loo(m3.1)
+loo3.2 = loo(m3.2)
+loo_compare(loo3.1, loo3.2)
+# Now m3.2 seems to be better with the elpd_diff being > 2* se_diff. m3.2 also samples better.
+# So we choose m3.2
+
+stanplot(m3.2, type="hist")
+stanplot(m3.2, type="dens_overlay")
+stanplot(m3.2, type="areas")
+stanplot(m3.2, type="areas", pars="b_")
+stanplot(m3.2, type="areas", pars="sd_")
+stanplot(m3.2, type="areas", pars="phi")
+
+# If I understand this right, then the mean EXAM for Bugspots when taking LOC
+# into account is exp(-2.59 + 0.441979) / (1 + exp(-2.59 + 0.441979))
+# while the mean EXAM for Linespots is exp(-2.59) / (1 + exp(-2.59))
+# This results in 0.1045163 vs 0.06978478 so on average, Linespots
+# has a 33% lower EXAM score than Bugspots.
+# That is not as good as the boxplot made it seem.
+
+#############################
 
 # Prior Sensitivity analysis in psa_4.R
 m3.3 = brm(
@@ -647,8 +689,36 @@ m3.3 = brm(
   warmup = 1000,
   chains = 4,
   cores = parallel::detectCores(),
-  control = list(adapt_delta=0.99),
+  control = list(adapt_delta=0.99999, max_treedepth=13),
   seed = SEED
 )
+
+summary(m3.3)
+plot(m3.3)
+
+np = nuts_params(m3.3)
+lp = log_posterior(m3.3)
+mcmc_nuts_acceptance(np, lp)
+mcmc_nuts_divergence(np, lp)
+mcmc_nuts_stepsize(np, lp)
+mcmc_nuts_treedepth(np, lp)
+mcmc_nuts_energy(np, lp)
+# Sampling looks good to me.
+
+stanplot(m3.3, type="hist")
+stanplot(m3.3, type="dens_overlay")
+stanplot(m3.3, type="areas")
+stanplot(m3.3, type="areas", pars="b_")
+# This looks like Linespots produces better AUCEC scores than Bugspots
+# although not significantly.
+stanplot(m3.3, type="areas", pars="sd_")
+stanplot(m3.3, type="areas", pars="phi")
+
+# If I understand this right, then the mean AUCEC for Bugspots when taking LOC
+# into account is exp(0.72 + 0.1547178) / (1 + exp(0.72 + 0.1547178))
+# while the mean EXAM for Linespots is exp(0.72) / (1 + exp(0.72))
+# This results in 0.7057264 vs 0.672607 so on average, Linespots
+# has a 5% lower AUCEc score than Bugspots.
+# This seems weird if prior research and the EXAM results are taken into account.
 
 save(m3.1, m3.2, m3.3, file="m3.RData")
