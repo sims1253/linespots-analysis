@@ -7,6 +7,9 @@ options(mc.cores = parallel::detectCores())
 SEED = 4082 # I asked my girlfriend for a number
 
 #setwd('.../linespots-analysis/rq1')
+#load(file="m1.RData")
+#load(file="m2.RData")
+#load(file="m3.RData")
 
 d = read_delim('../data.csv',
                delim = ",",
@@ -279,6 +282,8 @@ loo1.13 = loo(m1.13)
 
 loo_compare(loo1.1, loo1.2, loo1.3, loo1.4, loo1.5, loo1.6, loo1.7, loo1.8, loo1.9, loo1.10, loo1.11, loo1.12, loo1.13)
 
+#save(m1.1, m1.2, m1.3, m1.4, m1.5, m1.6, m1.7, m1.8, m1.9, m1.10, m1.11, m1.12, m1.13, file="m1.RData")
+
 summary(m1.7)
 
 # As 9, 13 and 7 are almost identical in loo performance, we choose 7
@@ -497,13 +502,15 @@ loo2.5 = loo(m2.5)
 loo2.6 = loo(m2.6, reloo = TRUE)
 loo2.7 = loo(m2.7)
 loo2.8 = loo(m2.8, reloo = TRUE)
-loo2.9 = loo(m2.9)
+loo2.9 = loo(m2.9, reloo = TRUE)
 loo2.10 = loo(m2.10)
-loo2.11 = loo(m2.11, reloo = TRUE)
+loo2.11 = loo(m2.11)
 loo2.12 = loo(m2.12)
-loo2.13 = loo(m2.13, reloo = TRUE)
+loo2.13 = loo(m2.13)
 
 loo_compare(loo2.1, loo2.2, loo2.3, loo2.4, loo2.5, loo2.6, loo2.7, loo2.8, loo2.9, loo2.10, loo2.11, loo2.12, loo2.13)
+
+#save(m2.1, m2.2, m2.3, m2.4, m2.5, m2.6, m2.7, m2.8, m2.9, m2.10, m2.11, m2.12, m2.13, file="m2.RData")
 
 summary(m2.7)
 # m2.7 and m2.9 perform very similar and the error for m2.7 is almost as big as the difference
@@ -594,3 +601,5 @@ mcmc_nuts_energy(np, lp)
 # The stanplot shows, that the google weighting function (intercept)
 # Gives significantly better AUCECas well (higher is better here) than
 # the other two weighting functions.
+
+#save(m3.1, m3.2, file="m3.RData")

@@ -721,4 +721,4 @@ stanplot(m3.3, type="areas", pars="phi")
 # has a 5% lower AUCEc score than Bugspots.
 # This seems weird if prior research and the EXAM results are taken into account.
 
-save(m3.1, m3.2, m3.3, file="m3.RData")
+#save(m3.1, m3.2, m3.3, file="m3.RData")
