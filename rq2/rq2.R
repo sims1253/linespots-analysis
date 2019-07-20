@@ -48,9 +48,9 @@ d = read_delim('../data.csv',
 )
 
 # Standardizing
-d$Commits = (d$Commits - mean(d$Commits)) / sd(d$Commits)
-d$LOC = (d$LOC - mean(d$LOC)) / sd(d$LOC)
-d$Origin = (d$Origin - mean(d$Origin)) / sd(d$Origin)
+d$Commits = scale(d$Commits)
+d$LOC = scale(d$LOC)
+d$Origin = scale(d$Origin)
 
 
 # RQ: What kind of Time function produces the best results for Linespots?

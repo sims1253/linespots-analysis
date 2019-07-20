@@ -4,9 +4,10 @@ library(bayesplot)
 library(rstanarm)
 options(mc.cores = parallel::detectCores())
 
-SEED = 4082 # I asked my girlfriend for a number
+SEED = 2407 # I asked my girlfriend for a number
 
 #setwd('.../linespots-analysis')
+#load(file="projpred.RData")
 
 d = read_delim('data.csv',
                delim = ",",
@@ -19,17 +20,22 @@ d = read_delim('data.csv',
                  Commits = col_double(),
                  Depth = col_double(),
                  Domain = col_factor(),
+                 EInspect10 = col_double(),
+                 EInspect25 = col_double(),
                  EXAM = col_double(),
                  EXAM25 = col_double(),
                  EXAM33 = col_double(),
                  EXAM50 = col_double(),
+                 EXAM75 = col_double(),
+                 EXAM95 = col_double(),
+                 EXAMF = col_double(),
                  FixCount = col_double(),
-                 Fixed = col_double(),
+                 FixRanks = col_guess(),
                  FullExam = col_guess(),
                  Future = col_double(),
                  ID = col_factor(),
                  LOC = col_double(),
-                 Missed = col_double(),
+                 Language = col_factor(),
                  Origin = col_double(),
                  Project = col_factor(),
                  Source = col_factor(),
@@ -44,6 +50,10 @@ d = read_delim('data.csv',
                )
 )
 
+# Unneccesarry for reproduction
+d$hdMaxLOC = d$hdMaxLOC / d$LOC
+
+
 # Standardizing
 d$Commits = (d$Commits - mean(d$Commits)) / sd(d$Commits)
 d$LOC = (d$LOC - mean(d$LOC)) / sd(d$LOC)
@@ -54,7 +64,7 @@ d$Origin = (d$Origin - mean(d$Origin)) / sd(d$Origin)
 ls.df = subset(d, d$Algorithm == "Linespots")
 
 # Building the pure numerical dataframe needed for rstanarm
-predictors = tibble(ls.df$Commits, ls.df$Domain, ls.df$LOC, ls.df$Origin, ls.df$Project, ls.df$Source, ls.df$Choice, ls.df$Time, ls.df$Weighting)
+predictors = tibble(ls.df$Commits, ls.df$Domain, ls.df$LOC, ls.df$Language, ls.df$Origin, ls.df$Project, ls.df$Time, ls.df$Weighting)
 predictors = matrix(as.numeric(unlist(predictors)),nrow=nrow(predictors))
 
 exam = tibble(ls.df$EXAM)
@@ -87,7 +97,7 @@ varsel_plot(cvs1, stats = c('elpd', 'rmse'), deltas=T)
 
 mcmc_areas(as.matrix(projpred1), pars = c('(Intercept)', names(cvs1$vind[1:suggest_size(cvs1)]), 'sigma'))
 # Based on this, the exam score for the linespots algorithm is best predicted by:
-# Origin, LOC, Choice, Source.
+# LOC, Origin, Language, Project.
 
 
 projpred2 = stan_glm(aucec ~ predictors,
@@ -104,13 +114,11 @@ suggest_size(cvs2)
 varsel_plot(cvs2, stats = c('elpd', 'rmse'), deltas=T)
 
 mcmc_areas(as.matrix(projpred2), pars = c('(Intercept)', names(cvs2$vind[1:suggest_size(cvs2)]), 'sigma'))
-# Based on this, the aucec score for the linespots algorithm is best predicted by using all predictors.
-# This seems wrong and the mcmc_areas plot shows, that only Origin, and Domain have no overlap with 0,
-# while LOX and Choice have only small overlaps with 0. Basedon this, we count those four predictors as the best ones.
-
+# Based on this, the AUCEC score for the linespots algorithm is best predicted by:
+# Origin, LOC, Language, Project.
 
 # For the fourth research question we need both linespots and bugspots
-predictors = tibble(d$Algorithm, d$Commits, d$Domain, d$LOC, d$Origin, d$Project, d$Source, d$Choice, d$Time, d$Weighting)
+predictors = tibble(d$Algorithm, d$Commits, d$Domain, d$LOC, d$Language, d$Origin, d$Project, d$Time, d$Weighting)
 predictors = matrix(as.numeric(unlist(predictors)),nrow=nrow(predictors))
 
 exam = tibble(d$EXAM)
@@ -142,8 +150,8 @@ suggest_size(cvs3)
 varsel_plot(cvs3, stats = c('elpd', 'rmse'), deltas=T)
 
 mcmc_areas(as.matrix(projpred3), pars = c('(Intercept)', names(cvs3$vind[1:suggest_size(cvs3)]), 'sigma'))
-# Going with 5 predictors, as the cross validated varsel proposes, the best predictors for overall exam
-# score in the dataset are: Algorithm, LOC, Commits, Choice, Source
+# Based on this, the exam score for both algorithms is best predicted by:
+# Domain, Language, LOC, Origin
 
 
 projpred4 = stan_glm(aucec ~ predictors,
@@ -160,4 +168,8 @@ suggest_size(cvs4)
 varsel_plot(cvs4, stats = c('elpd', 'rmse'), deltas=T)
 
 mcmc_areas(as.matrix(projpred4), pars = c('(Intercept)', names(cvs4$vind[1:suggest_size(cvs4)]), 'sigma'))
-# The cv varsel proposes the six predictors: Domain, Origin, Algorithm, LOC, Choice, Commits
+# Based on this, the AUCEC score for both algorithms is best predicted by:
+# Domain, Language, LOC, Origin
+
+
+#save(projpred1, projpred2, projpred3, projpred4, file="projpred.RData")

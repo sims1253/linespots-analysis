@@ -4,7 +4,7 @@ library(bayesplot)
 library(loo)
 options(mc.cores = parallel::detectCores())
 
-SEED = 4082 # I asked my girlfriend for a number
+SEED = 2407 # I asked my girlfriend for a number
 
 #setwd('.../linespots-analysis/rq1')
 #load(file="m1.RData")
@@ -22,17 +22,22 @@ d = read_delim('../data.csv',
                  Commits = col_double(),
                  Depth = col_double(),
                  Domain = col_factor(),
+                 EInspect10 = col_double(),
+                 EInspect25 = col_double(),
                  EXAM = col_double(),
                  EXAM25 = col_double(),
                  EXAM33 = col_double(),
                  EXAM50 = col_double(),
+                 EXAM75 = col_double(),
+                 EXAM95 = col_double(),
+                 EXAMF = col_double(),
                  FixCount = col_double(),
-                 Fixed = col_double(),
+                 FixRanks = col_guess(),
                  FullExam = col_guess(),
                  Future = col_double(),
                  ID = col_factor(),
                  LOC = col_double(),
-                 Missed = col_double(),
+                 Language = col_factor(),
                  Origin = col_double(),
                  Project = col_factor(),
                  Source = col_factor(),
@@ -46,6 +51,10 @@ d = read_delim('../data.csv',
                  tp = col_double()
                )
 )
+
+# Unneccesarry for reproduction
+d$hdMaxLOC = d$hdMaxLOC / d$LOC
+
 
 # Standardizing
 d$Commits = (d$Commits - mean(d$Commits)) / sd(d$Commits)
@@ -63,15 +72,14 @@ boxplot(EXAM ~ Weighting, data = ls.df)
 # This looks like all three weighting functions have very similar results
 # with the linear one having a slightly lower median than the other two.
 
-boxplot(AUCEC ~ Weighting, data = ls.df, outline=FALSE)
-# Removing the outliers to get a closer look.
-# All three weighting functions look to be virtually the same in terms
-# of AUCEC here.
+boxplot(AUCEC ~ Weighting, data = ls.df)
+# Looks like the flat weighting function has slightly higher median
+# aucec scores but all are very similar.
 
 
 # We start with the EXAM metric as output.
 # Starting with the simplest model becoming more complex.
-# The proposed predictors were: Origin, LOC, Choice, Source
+# The proposed predictors were: LOC, Origin, Language, Project.
 m1.1 = brm(
   formula = EXAM ~ 1 + Weighting,
   data = ls.df,
@@ -87,7 +95,7 @@ m1.1 = brm(
 )
 
 m1.2 = brm(
-  formula = EXAM ~ 1 + Weighting + Origin,
+  formula = EXAM ~ 1 + Weighting + LOC,
   data = ls.df,
   family=Beta(),
   prior = c(
@@ -100,7 +108,7 @@ m1.2 = brm(
   seed = SEED
 )
 m1.3 = brm(
-  formula = EXAM ~ 1 + Weighting + Origin + LOC,
+  formula = EXAM ~ 1 + Weighting + LOC + Origin,
   data = ls.df,
   family=Beta(),
   prior = c(
@@ -114,7 +122,7 @@ m1.3 = brm(
 )
 
 m1.4 = brm(
-  formula = EXAM ~ 1 + Weighting + Origin + LOC + (1|Choice),
+  formula = EXAM ~ 1 + Weighting + LOC + Origin + (1|Language),
   data = ls.df,
   family=Beta(),
   prior = c(
@@ -129,7 +137,7 @@ m1.4 = brm(
 )
 
 m1.5 = brm(
-  formula = EXAM ~ 1 + Weighting + Origin + LOC + (1|Choice) + (1|Source),
+  formula = EXAM ~ 1 + Weighting + LOC + Origin + (1|Language) + (1|Project),
   data = ls.df,
   family=Beta(),
   prior = c(
@@ -143,70 +151,9 @@ m1.5 = brm(
   seed = SEED
 )
 
-# My intuition tells me that an intercept per project might work well so
+# My intuition tells me that an intercept per Domain might work well too, so
 # I try some models including that even though projpred didn't propose it
 m1.6 = brm(
-  formula = EXAM ~ 1 + Weighting + (1|Project),
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m1.7 = brm(
-  formula = EXAM ~ 1 + Weighting + (1|Project) + Origin,
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m1.8 = brm(
-  formula = EXAM ~ 1 + Weighting + (1|Project) + LOC,
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m1.9 = brm(
-  formula = EXAM ~ 1 + Weighting + (1|Project) + Origin + LOC,
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-# Do the same for the domain
-m1.10 = brm(
   formula = EXAM ~ 1 + Weighting + (1|Domain),
   data = ls.df,
   family=Beta(),
@@ -221,8 +168,8 @@ m1.10 = brm(
   seed = SEED
 )
 
-m1.11 = brm(
-  formula = EXAM ~ 1 + Weighting + (1|Domain) + (1|Project),
+m1.7 = brm(
+  formula = EXAM ~ 1 + Weighting + (1|Domain) + LOC,
   data = ls.df,
   family=Beta(),
   prior = c(
@@ -236,7 +183,7 @@ m1.11 = brm(
   seed = SEED
 )
 
-m1.12 = brm(
+m1.8 = brm(
   formula = EXAM ~ 1 + Weighting + (1|Domain) + Origin,
   data = ls.df,
   family=Beta(),
@@ -251,8 +198,8 @@ m1.12 = brm(
   seed = SEED
 )
 
-m1.13 = brm(
-  formula = EXAM ~ 1 + Weighting + (1|Domain) + (1|Project) + Origin,
+m1.9 = brm(
+  formula = EXAM ~ 1 + Weighting + (1|Domain) + LOC + Origin,
   data = ls.df,
   family=Beta(),
   prior = c(
@@ -266,6 +213,37 @@ m1.13 = brm(
   seed = SEED
 )
 
+m1.10 = brm(
+  formula = EXAM ~ 1 + Weighting + (1|Domain) + LOC + Origin + (1|Language),
+  data = ls.df,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.1), class=b),
+    prior(cauchy(0,0.5), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  chains = 4,
+  cores = parallel::detectCores(),
+  seed = SEED
+)
+
+m1.11 = brm(
+  formula = EXAM ~ 1 + Weighting + (1|Domain) + LOC + Origin + (1|Language) + (1|Project),
+  data = ls.df,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.1), class=b),
+    prior(cauchy(0,0.5), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  chains = 4,
+  cores = parallel::detectCores(),
+  seed = SEED
+)
+
+
 loo1.1 = loo(m1.1)
 loo1.2 = loo(m1.2)
 loo1.3 = loo(m1.3)
@@ -277,26 +255,24 @@ loo1.8 = loo(m1.8)
 loo1.9 = loo(m1.9)
 loo1.10 = loo(m1.10)
 loo1.11 = loo(m1.11)
-loo1.12 = loo(m1.12)
-loo1.13 = loo(m1.13)
 
-loo_compare(loo1.1, loo1.2, loo1.3, loo1.4, loo1.5, loo1.6, loo1.7, loo1.8, loo1.9, loo1.10, loo1.11, loo1.12, loo1.13)
+loo_compare(loo1.1, loo1.2, loo1.3, loo1.4, loo1.5, loo1.6, loo1.7, loo1.8, loo1.9, loo1.10, loo1.11)
 
-#save(m1.1, m1.2, m1.3, m1.4, m1.5, m1.6, m1.7, m1.8, m1.9, m1.10, m1.11, m1.12, m1.13, file="m1.RData")
+#save(m1.1, m1.2, m1.3, m1.4, m1.5, m1.6, m1.7, m1.8, m1.9, m1.10, m1.11, file="m1.RData")
 
-summary(m1.7)
+summary(m1.5)
 
-# As 9, 13 and 7 are almost identical in loo performance, we choose 7
-# as it is the simplest model.
+# As 5 and 11 are almost identical in loo performance, we choose 5
+# as it is the simpler model.
 
 
-stanplot(m1.7, type="hist")
-stanplot(m1.7, type="dens_overlay")
-stanplot(m1.7, type="areas")
-stanplot(m1.7, type="areas", pars="b_")
+stanplot(m1.5, type="hist")
+stanplot(m1.5, type="dens_overlay")
+stanplot(m1.5, type="areas")
+stanplot(m1.5, type="areas", pars="b_")
 # This looks like the google weighting function produces better EXAM scores (lower is better),
 # and the difference seems to be significant.
-stanplot(m1.7, type="areas", pars="sd_")
+stanplot(m1.5, type="areas", pars="sd_")
 
 
 # We repeat the same process for the AUCEC output.
@@ -327,6 +303,7 @@ m2.2 = brm(
   cores = parallel::detectCores(),
   seed = SEED
 )
+
 m2.3 = brm(
   formula = AUCEC ~ 1 + Weighting + Origin + LOC,
   data = ls.df,
@@ -342,7 +319,7 @@ m2.3 = brm(
 )
 
 m2.4 = brm(
-  formula = AUCEC ~ 1 + Weighting + Origin + LOC + (1|Choice),
+  formula = AUCEC ~ 1 + Weighting + Origin + LOC + (1|Language),
   data = ls.df,
   family=Beta(),
   prior = c(
@@ -357,7 +334,7 @@ m2.4 = brm(
 )
 
 m2.5 = brm(
-  formula = AUCEC ~ 1 + Weighting + Origin + LOC + (1|Choice) + (1|Source),
+  formula = AUCEC ~ 1 + Weighting + Origin + LOC + (1|Language) + (1|Project),
   data = ls.df,
   family=Beta(),
   prior = c(
@@ -374,67 +351,6 @@ m2.5 = brm(
 # My intuition tells me that an intercept per project might work well so
 # I try some models including that even though projpred didn't propose it
 m2.6 = brm(
-  formula = AUCEC ~ 1 + Weighting + (1|Project),
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m2.7 = brm(
-  formula = AUCEC ~ 1 + Weighting + (1|Project) + Origin,
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m2.8 = brm(
-  formula = AUCEC ~ 1 + Weighting + (1|Project) + LOC,
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m2.9 = brm(
-  formula = AUCEC ~ 1 + Weighting + (1|Project) + Origin + LOC,
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-# Do the same for the domain
-m2.10 = brm(
   formula = AUCEC ~ 1 + Weighting + (1|Domain),
   data = ls.df,
   family=Beta(),
@@ -449,22 +365,7 @@ m2.10 = brm(
   seed = SEED
 )
 
-m2.11 = brm(
-  formula = AUCEC ~ 1 + Weighting + (1|Domain) + (1|Project),
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m2.12 = brm(
+m2.7 = brm(
   formula = AUCEC ~ 1 + Weighting + (1|Domain) + Origin,
   data = ls.df,
   family=Beta(),
@@ -479,8 +380,8 @@ m2.12 = brm(
   seed = SEED
 )
 
-m2.13 = brm(
-  formula = AUCEC ~ 1 + Weighting + (1|Domain) + (1|Project) + Origin,
+m2.8 = brm(
+  formula = AUCEC ~ 1 + Weighting + (1|Domain) + LOC,
   data = ls.df,
   family=Beta(),
   prior = c(
@@ -494,48 +395,91 @@ m2.13 = brm(
   seed = SEED
 )
 
+m2.9 = brm(
+  formula = AUCEC ~ 1 + Weighting + (1|Domain) + Origin + LOC,
+  data = ls.df,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.1), class=b),
+    prior(cauchy(0,0.5), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  chains = 4,
+  cores = parallel::detectCores(),
+  seed = SEED
+)
+
+m2.10 = brm(
+  formula = AUCEC ~ 1 + Weighting + (1|Domain) + Origin + LOC + (1|Language),
+  data = ls.df,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.1), class=b),
+    prior(cauchy(0,0.5), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  chains = 4,
+  cores = parallel::detectCores(),
+  seed = SEED
+)
+
+m2.11 = brm(
+  formula = AUCEC ~ 1 + Weighting + (1|Domain) + Origin + LOC + (1|Language) + (1|Project),
+  data = ls.df,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.1), class=b),
+    prior(cauchy(0,0.5), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  chains = 4,
+  cores = parallel::detectCores(),
+  seed = SEED
+)
+
+
 loo2.1 = loo(m2.1)
 loo2.2 = loo(m2.2)
 loo2.3 = loo(m2.3)
 loo2.4 = loo(m2.4)
 loo2.5 = loo(m2.5)
-loo2.6 = loo(m2.6, reloo = TRUE)
+loo2.6 = loo(m2.6)
 loo2.7 = loo(m2.7)
-loo2.8 = loo(m2.8, reloo = TRUE)
-loo2.9 = loo(m2.9, reloo = TRUE)
+loo2.8 = loo(m2.8)
+loo2.9 = loo(m2.9)
 loo2.10 = loo(m2.10)
 loo2.11 = loo(m2.11)
-loo2.12 = loo(m2.12)
-loo2.13 = loo(m2.13)
 
-loo_compare(loo2.1, loo2.2, loo2.3, loo2.4, loo2.5, loo2.6, loo2.7, loo2.8, loo2.9, loo2.10, loo2.11, loo2.12, loo2.13)
 
-#save(m2.1, m2.2, m2.3, m2.4, m2.5, m2.6, m2.7, m2.8, m2.9, m2.10, m2.11, m2.12, m2.13, file="m2.RData")
+loo_compare(loo2.1, loo2.2, loo2.3, loo2.4, loo2.5, loo2.6, loo2.7, loo2.8, loo2.9, loo2.10, loo2.11)
 
-summary(m2.7)
-# m2.7 and m2.9 perform very similar and the error for m2.7 is almost as big as the difference
-# Based on this, we choose the simpler model, m2.7
+#save(m2.1, m2.2, m2.3, m2.4, m2.5, m2.6, m2.7, m2.8, m2.9, m2.10, m2.11, file="m2.RData")
 
+summary(m2.5)
+# As 5 and 11 are almost identical in loo performance, we choose 5
+# as it is the simpler model.
 
 ##########################################################
 # Final models
 
 m3.1 = brm(
-  formula = EXAM ~ 1 + Weighting + (1|Project) + Origin,
+  formula = EXAM ~ 1 + Weighting + LOC + Origin + (1|Language) + (1|Project),
   data = ls.df,
   family=Beta(),
   prior = c(
     prior(normal(0,10), class=Intercept),
     prior(normal(0,0.05), class=b),
     prior(cauchy(0,0.05), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
+    prior(gamma(10, 10), class=phi)
   ),
-  sample_prior = TRUE,
   iter = 4000,
   warmup = 1000,
   chains = 4,
   cores = parallel::detectCores(),
-  control = list(adapt_delta=0.99),
+  control = list(adapt_delta=0.999),
   seed = SEED
 )
 summary(m3.1)
@@ -564,14 +508,14 @@ mcmc_nuts_energy(np, lp)
 # And do the same for the AUCEC
 
 m3.2 = brm(
-  formula = AUCEC ~ 1 + Weighting + (1|Project) + Origin,
+  formula = AUCEC ~ 1 + Weighting + Origin + LOC + (1|Language) + (1|Project),
   data = ls.df,
   family=Beta(),
   prior = c(
     prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.05), class=b),
-    prior(cauchy(0,0.05), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
+    prior(normal(0,0.01), class=b),
+    prior(cauchy(0,0.01), class=sd),
+    prior(gamma(10, 10), class=phi)
   ),
   sample_prior = TRUE,
   iter = 4000,
@@ -599,7 +543,7 @@ mcmc_nuts_treedepth(np, lp)
 mcmc_nuts_energy(np, lp)
 # Again, from what I understand, the sampling seems to work fine.
 # The stanplot shows, that the google weighting function (intercept)
-# Gives significantly better AUCECas well (higher is better here) than
+# Gives significantly better AUCECs (higher is better here) than
 # the other two weighting functions.
 
 #save(m3.1, m3.2, file="m3.RData")
