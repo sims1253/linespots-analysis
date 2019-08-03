@@ -4,53 +4,70 @@ library(bayesplot)
 library(loo)
 options(mc.cores = parallel::detectCores())
 
-SEED = 4082 # I asked my girlfriend for a number
+SEED = 140919 # I asked my girlfriend for a number
 
-#setwd('.../linespots-analysis/rq4')
-#load(file="m1.RData")
-#load(file="m2.RData")
-#load(file="m3.RData")
+setwd("~/Documents/dev/linespots/linespots-analysis/rq4")
+load(file="m1.RData")
+load(file="m2.RData")
+load(file="m3.RData")
+load(file="m4.RData")
 
 d = read_delim('../data.csv',
                delim = ",",
                locale = locale(decimal_mark = "."),
                col_names = TRUE,
                col_types = cols(
-                 AUCEC = col_double(),
+                 AUCECDENSITY = col_double(),
+                 AUCECEXAM = col_double(),
                  Algorithm = col_factor(),
                  Choice = col_factor(),
                  Commits = col_double(),
                  Depth = col_double(),
                  Domain = col_factor(),
+                 EInspect10Density = col_double(),
+                 EInspect10EXAM = col_double(),
+                 EInspect25Density = col_double(),
+                 EInspect25EXAM = col_double(),
                  EXAM = col_double(),
                  EXAM25 = col_double(),
                  EXAM33 = col_double(),
                  EXAM50 = col_double(),
+                 EXAM75 = col_double(),
+                 EXAM95 = col_double(),
+                 EXAMF = col_double(),
                  FixCount = col_double(),
-                 Fixed = col_double(),
+                 FixRanks = col_guess(),
                  FullExam = col_guess(),
                  Future = col_double(),
                  ID = col_factor(),
                  LOC = col_double(),
-                 Missed = col_double(),
+                 Language = col_factor(),
+                 MRD = col_double(),
                  Origin = col_double(),
                  Project = col_factor(),
+                 SRD = col_double(),
                  Source = col_factor(),
                  Time = col_factor(),
+                 WCP = col_double(),
+                 WCW = col_double(),
                  Weighting = col_factor(),
                  fn = col_double(),
                  fp = col_double(),
-                 hdMax = col_double(),
-                 hdMaxLOC = col_double(),
+                 hdMaxDensity = col_double(),
+                 hdMaxEXAM = col_double(),
+                 hdMaxLOCDensity = col_double(),
+                 hdMaxLOCEXAM = col_double(),
                  tn = col_double(),
                  tp = col_double()
                )
 )
 
+d = subset(d, d$FixCount != 0)
+
 # Standardizing
-d$Commits = scale(d$Commits)
-d$LOC = scale(d$LOC)
-d$Origin = scale(d$Origin)
+d$Commits = (d$Commits - mean(d$Commits)) / sd(d$Commits)
+d$LOC = (d$LOC - mean(d$LOC)) / sd(d$LOC)
+d$Origin = (d$Origin - mean(d$Origin)) / sd(d$Origin)
 
 
 # RQ:  What is the prediction performance of Linespots??
@@ -59,7 +76,7 @@ d$Origin = scale(d$Origin)
 boxplot(EXAM ~ Algorithm, data = d)
 # Linespots seems to produce lower (better) EXAM scores than Bugspots.
 
-boxplot(AUCEC ~ Algorithm, data = d, outline=FALSE)
+boxplot(AUCECEXAM ~ Algorithm, data = d)
 # Linespots also seems to produce lower (worse) AUCEC sores than Bugspots.
 # The difference seems smaller even when taking scaling of the plots
 # into account. This is interesting, as the first boxplot indicated
@@ -68,18 +85,19 @@ boxplot(AUCEC ~ Algorithm, data = d, outline=FALSE)
 
 # We start with the EXAM metric as output.
 # Starting with the simplest model becoming more complex.
-# The proposed predictors were Algorithm, LOC, Commits, Choice, Source
+# The proposed predictors were LOC, Project, Origin, Language
 m1.1 = brm(
   formula = EXAM ~ 1 + Algorithm,
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.05), class=b),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
@@ -88,193 +106,76 @@ m1.2 = brm(
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.05), class=b),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 m1.3 = brm(
-  formula = EXAM ~ 1 + Algorithm + LOC + Commits,
+  formula = EXAM ~ 1 + Algorithm + LOC + (1|Project),
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.05), class=b),
+    prior(cauchy(0,0.05), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
 m1.4 = brm(
-  formula = EXAM ~ 1 + Algorithm + LOC + Commits + (1|Choice),
+  formula = EXAM ~ 1 + Algorithm + LOC + (1|Project) + Origin,
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.05), class=b),
+    prior(cauchy(0,0.05), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
 m1.5 = brm(
-  formula = EXAM ~ 1 + Algorithm + LOC + Commits + (1|Choice) + (1|Source),
+  formula = EXAM ~ 1 + Algorithm + LOC + (1|Project) + Origin + (1|Language),
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.05), class=b),
+    prior(cauchy(0,0.05), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.999),
   seed = SEED
 )
 
-# My intuition tells me that an intercept per project might work well so
-# I try some models including that even though projpred didn't propose it
 m1.6 = brm(
-  formula = EXAM ~ 1 + Algorithm + (1|Project),
+  formula = EXAM ~ 1 + Algorithm + LOC + Origin + (1|Project) + (1|Language) + (1|Domain),
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.01), class=b),
+    prior(cauchy(0,0.01), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m1.7 = brm(
-  formula = EXAM ~ 1 + Algorithm + (1|Project) + LOC,
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m1.8 = brm(
-  formula = EXAM ~ 1 + Algorithm + (1|Project) + LOC + Commits,
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-# Do the same for the domain
-m1.9 = brm(
-  formula = EXAM ~ 1 + Algorithm + (1|Domain),
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m1.10 = brm(
-  formula = EXAM ~ 1 + Algorithm + (1|Domain) + LOC,
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m1.11 = brm(
-  formula = EXAM ~ 1 + Algorithm + (1|Domain) + LOC + Commits,
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m1.12 = brm(
-  formula = EXAM ~ 1 + Algorithm + (1|Domain) + (1|Project),
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m1.13 = brm(
-  formula = EXAM ~ 1 + Algorithm + (1|Domain) + (1|Project) + LOC,
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m1.14 = brm(
-  formula = EXAM ~ 1 + Algorithm + (1|Domain) + (1|Project) + LOC + Commits,
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
+  control = list(adapt_delta=0.9999),
   seed = SEED
 )
 
@@ -284,274 +185,106 @@ loo1.3 = loo(m1.3)
 loo1.4 = loo(m1.4)
 loo1.5 = loo(m1.5)
 loo1.6 = loo(m1.6)
-loo1.7 = loo(m1.7)
-loo1.8 = loo(m1.8)
-loo1.9 = loo(m1.9)
-loo1.10 = loo(m1.10)
-loo1.11 = loo(m1.11)
-loo1.12 = loo(m1.12)
-loo1.13 = loo(m1.13)
-loo1.14 = loo(m1.14)
 
-loo_compare(loo1.1, loo1.2, loo1.3, loo1.4, loo1.5, loo1.6, loo1.7, loo1.8, loo1.9, loo1.10, loo1.11, loo1.12, loo1.13, loo1.14)
-loo_compare(loo1.6, loo1.7, loo1.8)
-
-# save(m1.1, m1.2, m1.3, m1.4, m1.5, m1.6, m1.7, m1.8, m1.9, m1.10, m1.11, m1.12, m1.13, m1.14, file="m1.RData")
-
-# As m1.14 and m1.13 are a lot more complex than m1.8 and m1.7, we ignore them
-# based on the similar loo performance as the simpler models.
-# As m1.7 is simpler than m1.8 we also ignore m1.8 as it performs virtually the
-# same as m1.7. We end up with m1.6 and m1.7 that perform similar, which would give
-# m1.6 the benefit as it is the simpler model. But we will investigate both,
-# As a better prior choice might change the difference.
-
-summary(m1.6)
-summary(m1.7)
-# m1.7 actually seems to sample better than m1.6 but that might change
-# with better priors.
+loo_compare(loo1.1, loo1.2, loo1.3, loo1.4, loo1.5, loo1.6)
 
 
-stanplot(m1.6, type="hist")
-stanplot(m1.6, type="dens_overlay")
-stanplot(m1.6, type="areas")
-stanplot(m1.6, type="areas", pars="b_")
-# This looks like Linespots produces significantly better (lower is better) EXAM scores than Bugspots here.
-stanplot(m1.6, type="areas", pars="sd_")
-
-stanplot(m1.7, type="hist")
-stanplot(m1.7, type="dens_overlay")
-stanplot(m1.7, type="areas")
-stanplot(m1.7, type="areas", pars="b_")
-# This looks like Linespots produces significantly better (lower is better) EXAM scores than Bugspots here.
-stanplot(m1.7, type="areas", pars="sd_")
-# They both seem to predict very similar differences bettwen Linespots and Bugspots.
+save(m1.1, m1.2, m1.3, m1.4, m1.5, m1.6, file="m1.RData")
+summary(m1.3)
 
 
 # We repeat the same process for the AUCEC output.
-# The proposed predictors were: Domain, Origin, Algorithm, LOC, Choice, Commits
+# The proposed predictors were: LOC, Project, Origin, Language
 m2.1 = brm(
-  formula = AUCEC ~ 1 + Algorithm,
+  formula = AUCECEXAM ~ 1 + Algorithm,
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.05), class=b),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
 m2.2 = brm(
-  formula = AUCEC ~ 1 + Algorithm + (1|Domain),
+  formula = AUCECEXAM ~ 1 + Algorithm + LOC,
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.05), class=b),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 m2.3 = brm(
-  formula = AUCEC ~ 1 + Algorithm + (1|Domain) + Origin,
+  formula = AUCECEXAM ~ 1 + Algorithm + LOC + (1|Project),
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.05), class=b),
+    prior(cauchy(0,0.05), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
 m2.4 = brm(
-  formula = AUCEC ~ 1 + Algorithm + (1|Domain) + Origin + LOC,
+  formula = AUCECEXAM ~ 1 + Algorithm + LOC + (1|Project) + Origin,
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.05), class=b),
+    prior(cauchy(0,0.05), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
 m2.5 = brm(
-  formula = AUCEC ~ 1 + Algorithm + (1|Domain) + Origin + LOC + (1|Choice),
+  formula = AUCECEXAM ~ 1 + Algorithm + LOC + (1|Project) + Origin + (1|Language),
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.05), class=b),
+    prior(cauchy(0,0.05), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
 m2.6 = brm(
-  formula = AUCEC ~ 1 + Algorithm + (1|Domain) + Origin + LOC + (1|Choice) + Commits,
+  formula = AUCECEXAM ~ 1 + Algorithm + LOC + Origin + (1|Project) + (1|Language) + (1|Domain),
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.01), class=b),
+    prior(cauchy(0,0.01), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
-  seed = SEED
-)
-
-# My intuition tells me that an intercept per project might work well so
-# I try some models including that even though projpred didn't propose it
-m2.7 = brm(
-  formula = AUCEC ~ 1 + Algorithm + (1|Project),
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m2.7 = brm(
-  formula = AUCEC ~ 1 + Algorithm + (1|Project) + (1|Domain),
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m2.8 = brm(
-  formula = AUCEC ~ 1 + Algorithm + (1|Project) + (1|Domain) + Origin,
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m2.9 = brm(
-  formula = AUCEC ~ 1 + Algorithm + (1|Project) + (1|Domain) + Origin + LOC,
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m2.10 = brm(
-  formula = AUCEC ~ 1 + Algorithm + (1|Project) + (1|Domain) + Origin + LOC + (1|Choice),
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m2.11 = brm(
-  formula = AUCEC ~ 1 + Algorithm + (1|Project) + (1|Domain) + Origin + LOC + (1|Choice) + Commits,
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-# I added these last three models as they are similar to the successfull ones in rq1 and rq2
-m2.12 = brm(
-  formula = AUCEC ~ 1 + Algorithm + (1|Project) + Origin,
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m2.13 = brm(
-  formula = AUCEC ~ 1 + Algorithm + (1|Project) + Origin + LOC,
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m2.14 = brm(
-  formula = AUCEC ~ 1 + Algorithm + (1|Project) + LOC,
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,0.5), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
+  control = list(adapt_delta=0.999),
   seed = SEED
 )
 
@@ -561,164 +294,60 @@ loo2.3 = loo(m2.3)
 loo2.4 = loo(m2.4)
 loo2.5 = loo(m2.5)
 loo2.6 = loo(m2.6)
-loo2.7 = loo(m2.7)
-loo2.8 = loo(m2.8)
-loo2.9 = loo(m2.9)
-loo2.10 = loo(m2.10)
-loo2.11 = loo(m2.11)
-loo2.12 = loo(m2.12)
-loo2.13 = loo(m2.13)
-loo2.14 = loo(m2.14)
 
-loo_compare(loo2.1, loo2.2, loo2.3, loo2.4, loo2.5, loo2.6, loo2.7,
-            loo2.8, loo2.9, loo2.10, loo2.11, loo2.12, loo2.13, loo2.14)
-# m2.8 is the simplest model for all the models that perform equally well
-# so we choose it.
+loo_compare(loo2.1, loo2.2, loo2.3, loo2.4, loo2.5, loo2.6)
+summary(m2.6)
 
-#save(m2.1, m2.2, m2.3, m2.4, m2.5, m2.6, m2.7, m2.8, m2.9, m2.10, m2.11, m2.12, m2.13, m2.14, file="m2.RData")
 
-summary(m2.8)
-
-stanplot(m2.8, type="hist")
-stanplot(m2.8, type="dens_overlay")
-stanplot(m2.8, type="areas")
-stanplot(m2.8, type="areas", pars="b_")
-# Looks like Linespots does produce better AUCEC scores than Bugspots
-# but not significantly
-stanplot(m2.8, type="areas", pars="sd_")
+save(m2.1, m2.2, m2.3, m2.4, m2.5, m2.6, file="m2.RData")
 
 
 ##########################################################
 # Final models
+# We can use the same priors as for rq1 and 2
 
-# Prior Sensitivity analysis in psa_4.R
+# based on m1.3
 m3.1 = brm(
-  formula = EXAM ~ 1 + Algorithm + (1|Project),
+  formula = EXAM ~ 1 + Algorithm + LOC + (1|Project),
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.05), class=b),
-    prior(cauchy(0,0.05), class=sd),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.5), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
-  sample_prior = TRUE,
-  iter = 4000,
-  warmup = 1000,
+  iter = 10000,
+  warmup = 2500,
   chains = 4,
   cores = parallel::detectCores(),
-  control = list(adapt_delta=0.99),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.9999),
   seed = SEED
 )
-summary(m3.1)
 
-np = nuts_params(m3.1)
-lp = log_posterior(m3.1)
-mcmc_nuts_acceptance(np, lp)
-mcmc_nuts_divergence(np, lp)
-mcmc_nuts_stepsize(np, lp)
-mcmc_nuts_treedepth(np, lp)
-mcmc_nuts_energy(np, lp)
-# Looks good to me but has low Eff.Sample
+save(m3.1, file="m3.RData")
 
-# Here we can use the same priors as for rq1 and rq2
-m3.2 = brm(
-  formula = EXAM ~ 1 + Algorithm + (1|Project) + LOC,
+###################################################################
+
+# based on 2.3
+m4.1 = brm(
+  formula = AUCECEXAM ~ 1 + Algorithm + LOC + (1|Project),
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.05), class=b),
-    prior(cauchy(0,0.05), class=sd),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.5), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
-  sample_prior = TRUE,
-  iter = 4000,
-  warmup = 1000,
+  iter = 10000,
+  warmup = 2500,
   chains = 4,
   cores = parallel::detectCores(),
-  control = list(adapt_delta=0.99),
-  seed = SEED
-)
-summary(m3.2)
-plot(m3.2)
-np = nuts_params(m3.2)
-lp = log_posterior(m3.2)
-mcmc_nuts_acceptance(np, lp)
-mcmc_nuts_divergence(np, lp)
-mcmc_nuts_stepsize(np, lp)
-mcmc_nuts_treedepth(np, lp)
-mcmc_nuts_energy(np, lp)
-# This seems to sample just good enough
-
-loo3.1 = loo(m3.1)
-loo3.2 = loo(m3.2)
-loo_compare(loo3.1, loo3.2)
-# Now m3.2 seems to be better with the elpd_diff being > 2* se_diff. m3.2 also samples better.
-# So we choose m3.2
-
-stanplot(m3.2, type="hist")
-stanplot(m3.2, type="dens_overlay")
-stanplot(m3.2, type="areas")
-stanplot(m3.2, type="areas", pars="b_")
-stanplot(m3.2, type="areas", pars="sd_")
-stanplot(m3.2, type="areas", pars="phi")
-
-# If I understand this right, then the mean EXAM for Bugspots when taking LOC
-# into account is exp(-2.59 + 0.441979) / (1 + exp(-2.59 + 0.441979))
-# while the mean EXAM for Linespots is exp(-2.59) / (1 + exp(-2.59))
-# This results in 0.1045163 vs 0.06978478 so on average, Linespots
-# has a 33% lower EXAM score than Bugspots.
-# That is not as good as the boxplot made it seem.
-
-#############################
-
-# Prior Sensitivity analysis in psa_4.R
-m3.3 = brm(
-  formula = AUCEC ~ 1 + Algorithm + (1|Project) + (1|Domain) + Origin,
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.05), class=b),
-    prior(cauchy(0,0.05), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
   sample_prior = TRUE,
-  iter = 4000,
-  warmup = 1000,
-  chains = 4,
-  cores = parallel::detectCores(),
-  control = list(adapt_delta=0.99999, max_treedepth=13),
+  control = list(adapt_delta=0.999),
   seed = SEED
 )
 
-summary(m3.3)
-plot(m3.3)
-
-np = nuts_params(m3.3)
-lp = log_posterior(m3.3)
-mcmc_nuts_acceptance(np, lp)
-mcmc_nuts_divergence(np, lp)
-mcmc_nuts_stepsize(np, lp)
-mcmc_nuts_treedepth(np, lp)
-mcmc_nuts_energy(np, lp)
-# Sampling looks good to me.
-
-stanplot(m3.3, type="hist")
-stanplot(m3.3, type="dens_overlay")
-stanplot(m3.3, type="areas")
-stanplot(m3.3, type="areas", pars="b_")
-# This looks like Linespots produces better AUCEC scores than Bugspots
-# although not significantly.
-stanplot(m3.3, type="areas", pars="sd_")
-stanplot(m3.3, type="areas", pars="phi")
-
-# If I understand this right, then the mean AUCEC for Bugspots when taking LOC
-# into account is exp(0.72 + 0.1547178) / (1 + exp(0.72 + 0.1547178))
-# while the mean EXAM for Linespots is exp(0.72) / (1 + exp(0.72))
-# This results in 0.7057264 vs 0.672607 so on average, Linespots
-# has a 5% lower AUCEc score than Bugspots.
-# This seems weird if prior research and the EXAM results are taken into account.
-
-#save(m3.1, m3.2, m3.3, file="m3.RData")
+save(m4.1, file="m4.RData")
