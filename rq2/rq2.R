@@ -4,26 +4,30 @@ library(bayesplot)
 library(loo)
 options(mc.cores = parallel::detectCores())
 
-SEED = 2407 # I asked my girlfriend for a number
+SEED = 140919 # I asked my girlfriend for a number
 
-#setwd('.../linespots-analysis/rq2')
-#load(file="m1.RData")
-#load(file="m2.RData")
-#load(file="m3.RData")
+setwd("~/Documents/dev/linespots/linespots-analysis/rq2")
+load(file="m1.RData")
+load(file="m2.RData")
+load(file="m3.RData")
+load(file="m4.RData")
 
 d = read_delim('../data.csv',
                delim = ",",
                locale = locale(decimal_mark = "."),
                col_names = TRUE,
                col_types = cols(
-                 AUCEC = col_double(),
+                 AUCECDENSITY = col_double(),
+                 AUCECEXAM = col_double(),
                  Algorithm = col_factor(),
                  Choice = col_factor(),
                  Commits = col_double(),
                  Depth = col_double(),
                  Domain = col_factor(),
-                 EInspect10 = col_double(),
-                 EInspect25 = col_double(),
+                 EInspect10Density = col_double(),
+                 EInspect10EXAM = col_double(),
+                 EInspect25Density = col_double(),
+                 EInspect25EXAM = col_double(),
                  EXAM = col_double(),
                  EXAM25 = col_double(),
                  EXAM33 = col_double(),
@@ -38,23 +42,27 @@ d = read_delim('../data.csv',
                  ID = col_factor(),
                  LOC = col_double(),
                  Language = col_factor(),
+                 MRD = col_double(),
                  Origin = col_double(),
                  Project = col_factor(),
+                 SRD = col_double(),
                  Source = col_factor(),
                  Time = col_factor(),
+                 WCP = col_double(),
+                 WCW = col_double(),
                  Weighting = col_factor(),
                  fn = col_double(),
                  fp = col_double(),
-                 hdMax = col_double(),
-                 hdMaxLOC = col_double(),
+                 hdMaxDensity = col_double(),
+                 hdMaxEXAM = col_double(),
+                 hdMaxLOCDensity = col_double(),
+                 hdMaxLOCEXAM = col_double(),
                  tn = col_double(),
                  tp = col_double()
                )
 )
 
-# Unneccesarry for reproduction
-d$hdMaxLOC = d$hdMaxLOC / d$LOC
-
+d = subset(d, d$FixCount != 0)
 
 # Standardizing
 d$Commits = (d$Commits - mean(d$Commits)) / sd(d$Commits)
@@ -62,33 +70,36 @@ d$LOC = (d$LOC - mean(d$LOC)) / sd(d$LOC)
 d$Origin = (d$Origin - mean(d$Origin)) / sd(d$Origin)
 
 
-# RQ: What kind of Time function produces the best results for Linespots?
+# RQ: How does using the commit position instead of age for weighting, influence the performance of Linespots?
 
 # For this question we are only interested in the behaviour of linespots.
 ls.df = subset(d, d$Algorithm == "Linespots")
 
 # Lets look at some boxplots first
 boxplot(EXAM ~ Time, data = ls.df)
-# This looks almost exactly the same for both
 
-boxplot(AUCEC ~ Time, data = ls.df)
-# Again, looks exactly the same for both.
+
+boxplot(AUCECEXAM ~ Time, data = ls.df)
+
+
+boxplot(EXAM25 ~ Time, data = ls.df)
 
 
 # We start with the EXAM metric as output.
 # Starting with the simplest model becoming more complex.
-# The proposed predictors were: LOC, Origin, Language, Project
+# The proposed predictors were:  LOC, Project, Origin
 m1.1 = brm(
   formula = EXAM ~ 1 + Time,
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(gamma(10, 10), class=phi)
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
@@ -97,149 +108,96 @@ m1.2 = brm(
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(gamma(10, 10), class=phi)
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 m1.3 = brm(
-  formula = EXAM ~ 1 + Time + LOC + Origin,
+  formula = EXAM ~ 1 + Time + LOC + (1|Project),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(gamma(10, 10), class=phi)
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.5), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
 m1.4 = brm(
-  formula = EXAM ~ 1 + Time + LOC + Origin + (1|Language),
+  formula = EXAM ~ 1 + Time + LOC + Origin + (1|Project),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
     prior(cauchy(0,0.5), class=sd),
-    prior(gamma(10, 10), class=phi)
+    prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
+# Want to see if adding Language or Domain helps
 m1.5 = brm(
-  formula = EXAM ~ 1 + Time + LOC + Origin + (1|Language) + (1|Project),
+  formula = EXAM ~ 1 + Time + LOC + Origin + (1|Project) + (1|Language),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
     prior(cauchy(0,0.5), class=sd),
-    prior(gamma(10, 10), class=phi)
+    prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
-# My intuition tells me that an intercept per project might work well so
-# I try some models including that even though projpred didn't propose it
 m1.6 = brm(
-  formula = EXAM ~ 1 + Time + (1|Domain),
+  formula = EXAM ~ 1 + Time + LOC + Origin + (1|Project) + (1|Domain),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
     prior(cauchy(0,0.5), class=sd),
-    prior(gamma(10, 10), class=phi)
+    prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
 m1.7 = brm(
-  formula = EXAM ~ 1 + Time + (1|Domain) + LOC,
+  formula = EXAM ~ 1 + Time + LOC + Origin + (1|Project) + (1|Domain) + (1|Language),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
     prior(cauchy(0,0.5), class=sd),
-    prior(gamma(10, 10), class=phi)
+    prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
-m1.8 = brm(
-  formula = EXAM ~ 1 + Time + (1|Domain) + Origin,
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(10, 10), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m1.9 = brm(
-  formula = EXAM ~ 1 + Time + (1|Domain) + LOC + Origin,
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(10, 10), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m1.10 = brm(
-  formula = EXAM ~ 1 + Time + (1|Domain) + LOC + Origin + (1|Language),
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(10, 10), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m1.11 = brm(
-  formula = EXAM ~ 1 + Time + (1|Domain) + LOC + Origin + (1|Language) + (1|Project),
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(10, 10), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
 
 loo1.1 = loo(m1.1)
 loo1.2 = loo(m1.2)
@@ -248,191 +206,136 @@ loo1.4 = loo(m1.4)
 loo1.5 = loo(m1.5)
 loo1.6 = loo(m1.6)
 loo1.7 = loo(m1.7)
-loo1.8 = loo(m1.8)
-loo1.9 = loo(m1.9)
-loo1.10 = loo(m1.10)
-loo1.11 = loo(m1.11)
 
-loo_compare(loo1.1, loo1.2, loo1.3, loo1.4, loo1.5, loo1.6, loo1.7, loo1.8, loo1.9, loo1.10, loo1.11)
+loo_compare(loo1.1, loo1.2, loo1.3, loo1.4, loo1.5, loo1.6, loo1.7)
+# Using se_diff > 4*elpd_diff for a significantly better model, models 3 to 7 are
+# essentially equally good.
+# In that case, model 3 would be the preferred one as it has the fewest predictors.
+# We can also keep model 7 for comparison.
+# And while we see transitions exceeding tree depth, that is not a validity concern
+# but only a efficiency concern.
+summary(m1.3)
+summary(m1.7)
+# Model 7 seems to sample better. 3 has one rhat at 1.02
 
-#save(m1.1, m1.2, m1.3, m1.4, m1.5, m1.6, m1.7, m1.8, m1.9, m1.10, m1.11, file="m1.RData")
-
-summary(m1.5)
-
-# As 5 and 11 are almost identical in loo performance, we choose 5
-# as it is the simpler model.
+save(m1.1, m1.2, m1.3, m1.4, m1.5, m1.6, m1.7, file="m1.RData")
 
 
-stanplot(m1.5, type="hist")
-stanplot(m1.5, type="dens_overlay")
-stanplot(m1.5, type="areas")
-stanplot(m1.5, type="areas", pars="b_")
-# This looks like time is significantly better than commit for producing lower EXAM scores.
-stanplot(m1.5, type="areas", pars="sd_")
 
 # We repeat the same process for the AUCEC output.
+# The proposed predictors were LOC, Project, Origin.
 m2.1 = brm(
-  formula = AUCEC ~ 1 + Time,
+  formula = AUCECEXAM ~ 1 + Time,
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(gamma(10, 10), class=phi)
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
 m2.2 = brm(
-  formula = AUCEC ~ 1 + Time + Origin,
+  formula = AUCECEXAM ~ 1 + Time + LOC,
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(gamma(10, 10), class=phi)
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
+
 m2.3 = brm(
-  formula = AUCEC ~ 1 + Time + Origin + LOC,
+  formula = AUCECEXAM ~ 1 + Time + LOC + (1|Project),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(gamma(10, 10), class=phi)
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.5), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
 m2.4 = brm(
-  formula = AUCEC ~ 1 + Time + LOC + Origin + (1|Language),
+  formula = AUCECEXAM ~ 1 + Time + Origin + LOC + (1|Project),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
     prior(cauchy(0,0.5), class=sd),
-    prior(gamma(10, 10), class=phi)
+    prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
+
+# Test if Domain or Language improves the model
 
 m2.5 = brm(
-  formula = AUCEC ~ 1 + Time + LOC + Origin + (1|Language) + (1|Project),
+  formula = AUCECEXAM ~ 1 + Time + Origin + LOC + (1|Language) + (1|Project),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
     prior(cauchy(0,0.5), class=sd),
-    prior(gamma(10, 10), class=phi)
+    prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
-# My intuition tells me that an intercept per project might work well so
-# I try some models including that even though projpred didn't propose it
 m2.6 = brm(
-  formula = AUCEC ~ 1 + Time + (1|Domain),
+  formula = AUCECEXAM ~ 1 + Time + Origin + LOC + (1|Domain) + (1|Project),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
     prior(cauchy(0,0.5), class=sd),
-    prior(gamma(10, 10), class=phi)
+    prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
 m2.7 = brm(
-  formula = AUCEC ~ 1 + Time + (1|Domain) + Origin,
+  formula = AUCECEXAM ~ 1 + Time + Origin + LOC + (1|Domain) + (1|Project) + (1|Language),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
     prior(cauchy(0,0.5), class=sd),
-    prior(gamma(10, 10), class=phi)
+    prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
+  control = list(adapt_delta=0.99),
   seed = SEED
 )
 
-m2.8 = brm(
-  formula = AUCEC ~ 1 + Time + (1|Domain) + LOC,
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(10, 10), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m2.9 = brm(
-  formula = AUCEC ~ 1 + Time + (1|Domain) + LOC + Origin,
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(10, 10), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m2.10 = brm(
-  formula = AUCEC ~ 1 + Time + (1|Domain) + LOC + Origin + (1|Language),
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(10, 10), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
-
-m2.11 = brm(
-  formula = AUCEC ~ 1 + Time + (1|Domain) + LOC + Origin + (1|Language) + (1|Project),
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(10, 10), class=phi)
-  ),
-  chains = 4,
-  cores = parallel::detectCores(),
-  seed = SEED
-)
 
 loo2.1 = loo(m2.1)
 loo2.2 = loo(m2.2)
@@ -441,51 +344,70 @@ loo2.4 = loo(m2.4)
 loo2.5 = loo(m2.5)
 loo2.6 = loo(m2.6)
 loo2.7 = loo(m2.7)
-loo2.8 = loo(m2.8)
-loo2.9 = loo(m2.9)
-loo2.10 = loo(m2.10)
-loo2.11 = loo(m2.11)
 
+loo_compare(loo2.1, loo2.2, loo2.3, loo2.4, loo2.5, loo2.6, loo2.7)
+# Again models 3 to 7 have essentially the same loo performance.
+# We again chose model 3 as it is the simplest one. We can keep model 7 as comparison.
 
-loo_compare(loo2.1, loo2.2, loo2.3, loo2.4, loo2.5, loo2.6, loo2.7, loo2.8, loo2.9, loo2.10, loo2.11)
-#save(m2.1, m2.2, m2.3, m2.4, m2.5, m2.6, m2.7, m2.8, m2.9, m2.10, m2.11, file="m2.RData")
+summary(m2.3)
+summary(m2.7)
+# Again model 7 seems to sample better
 
-summary(m2.5)
-# As 5 and 11 are almost identical in loo performance, we choose 5
-# as it is the simpler model.
-
-stanplot(m2.5, type="hist")
-stanplot(m2.5, type="dens_overlay")
-stanplot(m2.5, type="areas")
-stanplot(m2.5, type="areas", pars="b_")
-# This looks like time is significantly better than commit for producing higher AUCEC scores.
-stanplot(m2.5, type="areas", pars="sd_")
-
+save(m2.1, m2.2, m2.3, m2.4, m2.5, m2.6, m2.7, file="m2.RData")
 
 ##########################################################
 # Final models
-# As the we are using a model of the same structure as rq1,
-# we use the same priors as for rq1
 
+# based on 1.3
 m3.1 = brm(
-  formula = EXAM ~ 1 + Time + LOC + Origin + (1|Language) + (1|Project),
+  formula = EXAM ~ 1 + Time + LOC + (1|Project),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.05), class=b),
-    prior(cauchy(0,0.05), class=sd),
-    prior(gamma(10, 10), class=phi)
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.5), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
   ),
-  iter = 4000,
-  warmup = 1000,
+  iter = 10000,
+  warmup = 2500,
   chains = 4,
   cores = parallel::detectCores(),
+  sample_prior = TRUE,
   control = list(adapt_delta=0.999),
   seed = SEED
 )
+
+# based on 1.7
+m3.2 = brm(
+  formula = EXAM ~ 1 + Time + LOC + Origin + (1|Project) + (1|Domain) + (1|Language),
+  data = ls.df,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.5), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  iter = 10000,
+  warmup = 2500,
+  chains = 4,
+  cores = parallel::detectCores(),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.999),
+  seed = SEED
+)
+save(m3.1, m3.2, file="m3.RData")
+
+loo_compare(loo(m3.1), loo(m3.2))
+
 summary(m3.1)
+summary(m3.2)
 plot(m3.1)
+plot(m3.2)
+
+# Model 2 seems to sample a little better. Especially the Intercept.
+# Regardless, both seem to 
 
 stanplot(m3.1, type="hist")
 stanplot(m3.1, type="dens_overlay")
@@ -500,35 +422,63 @@ mcmc_nuts_divergence(np, lp)
 mcmc_nuts_stepsize(np, lp)
 mcmc_nuts_treedepth(np, lp)
 mcmc_nuts_energy(np, lp)
-# From what I understand, the sampling seems to be good.
-# The time based version is part of the intercept. Moving to the commit based version
-# does not influence the EXAM from what I understand.
+# From what I understand, the sampling seems to work fine.
+
+plot(hypothesis(m3.1, "Timelinear_Time_function=0"))
+plot(hypothesis(m3.1, "Timeflat_Time_function=0"))
 
 
 ############################################################
 # And do the same for the AUCEC
 
-m3.2 = brm(
-  formula = AUCEC ~ 1 + Time + Origin + LOC + (1|Language) + (1|Project),
+# Based on 2.3
+m4.1 = brm(
+  formula = AUCECEXAM ~ 1 + Time + LOC + (1|Project),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,10), class=Intercept),
-    prior(normal(0,0.05), class=b),
-    prior(cauchy(0,0.05), class=sd),
-    prior(gamma(10, 10), class=phi)
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.5), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
   ),
-  sample_prior = TRUE,
-  iter = 4000,
-  warmup = 1000,
+  iter = 10000,
+  warmup = 2500,
   chains = 4,
   cores = parallel::detectCores(),
-  control = list(adapt_delta=0.99),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.999),
   seed = SEED
 )
-summary(m3.2)
-plot(m3.2)
 
+# Based on 2.7
+m4.2 = brm(
+  formula = AUCECEXAM ~ 1 + Time + LOC + Origin + (1|Project) + (1|Domain) + (1|Language),
+  data = ls.df,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,1), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.5), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  iter = 10000,
+  warmup = 2500,
+  chains = 4,
+  cores = parallel::detectCores(),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.999),
+  seed = SEED
+)
+save(m4.1, m4.2, file="m4.RData")
+
+summary(m4.1)
+summary(m4.2)
+# Model 1 seems to sample a lot better but the Time coefficients are the same for both.
+plot(m4.1)
+plot(m4.2)
+
+loo_compare(loo(m4.1), loo(m4.2))
 stanplot(m3.2, type="hist")
 stanplot(m3.2, type="dens_overlay")
 stanplot(m3.2, type="areas")
@@ -542,8 +492,9 @@ mcmc_nuts_divergence(np, lp)
 mcmc_nuts_stepsize(np, lp)
 mcmc_nuts_treedepth(np, lp)
 mcmc_nuts_energy(np, lp)
-# Again, from what I understand, the sampling seems to be good.
-# The time based version is part of the intercept. Moving to the commit based version
-# does not influence the AUCEC from what I understand.
 
-#save(m3.1, m3.2, file="m3.RData")
+plot(hypothesis(m3.2, "Timelinear_Time_function=0"))
+plot(hypothesis(m3.2, "Timeflat_Time_function=0"))
+
+
+save(m4.1, m4.2, file="m4.RData")
