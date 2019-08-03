@@ -4,9 +4,9 @@ library(bayesplot)
 library(rstanarm)
 options(mc.cores = parallel::detectCores())
 
-SEED = 2407 # I asked my girlfriend for a number
+SEED = 140919 # I asked my girlfriend for a number
 
-#setwd('.../linespots-analysis')
+#setwd("~/Documents/dev/linespots/linespots-analysis/")
 #load(file="projpred.RData")
 
 d = read_delim('data.csv',
@@ -14,14 +14,17 @@ d = read_delim('data.csv',
                locale = locale(decimal_mark = "."),
                col_names = TRUE,
                col_types = cols(
-                 AUCEC = col_double(),
+                 AUCECDENSITY = col_double(),
+                 AUCECEXAM = col_double(),
                  Algorithm = col_factor(),
                  Choice = col_factor(),
                  Commits = col_double(),
                  Depth = col_double(),
                  Domain = col_factor(),
-                 EInspect10 = col_double(),
-                 EInspect25 = col_double(),
+                 EInspect10Density = col_double(),
+                 EInspect10EXAM = col_double(),
+                 EInspect25Density = col_double(),
+                 EInspect25EXAM = col_double(),
                  EXAM = col_double(),
                  EXAM25 = col_double(),
                  EXAM33 = col_double(),
@@ -36,23 +39,27 @@ d = read_delim('data.csv',
                  ID = col_factor(),
                  LOC = col_double(),
                  Language = col_factor(),
+                 MRD = col_double(),
                  Origin = col_double(),
                  Project = col_factor(),
+                 SRD = col_double(),
                  Source = col_factor(),
                  Time = col_factor(),
+                 WCP = col_double(),
+                 WCW = col_double(),
                  Weighting = col_factor(),
                  fn = col_double(),
                  fp = col_double(),
-                 hdMax = col_double(),
-                 hdMaxLOC = col_double(),
+                 hdMaxDensity = col_double(),
+                 hdMaxEXAM = col_double(),
+                 hdMaxLOCDensity = col_double(),
+                 hdMaxLOCEXAM = col_double(),
                  tn = col_double(),
                  tp = col_double()
                )
 )
 
-# Unneccesarry for reproduction
-d$hdMaxLOC = d$hdMaxLOC / d$LOC
-
+d = subset(d, d$FixCount != 0)
 
 # Standardizing
 d$Commits = (d$Commits - mean(d$Commits)) / sd(d$Commits)
@@ -70,7 +77,10 @@ predictors = matrix(as.numeric(unlist(predictors)),nrow=nrow(predictors))
 exam = tibble(ls.df$EXAM)
 exam = matrix(as.numeric(unlist(exam)),nrow=nrow(exam))
 
-aucec = tibble(ls.df$AUCEC)
+exam25 = tibble(ls.df$EXAM25)
+exam25 = matrix(as.numeric(unlist(exam25)),nrow=nrow(exam25))
+
+aucec = tibble(ls.df$AUCECEXAM)
 aucec = matrix(as.numeric(unlist(aucec)),nrow=nrow(aucec))
 
 ls.data = tibble(predictors, exam, aucec)
@@ -87,9 +97,6 @@ projpred1 = stan_glm(exam ~ predictors,
                     chains = 4, iter = 2000, seed = SEED)
 summary(projpred1) # Rhat and n_eff look good
 
-vs1 = varsel(projpred1, method = 'forward')
-vs1$vind
-suggest_size(vs1)
 cvs1 = cv_varsel(projpred1, method = 'forward')
 cvs1$vind
 suggest_size(cvs1)
@@ -97,7 +104,7 @@ varsel_plot(cvs1, stats = c('elpd', 'rmse'), deltas=T)
 
 mcmc_areas(as.matrix(projpred1), pars = c('(Intercept)', names(cvs1$vind[1:suggest_size(cvs1)]), 'sigma'))
 # Based on this, the exam score for the linespots algorithm is best predicted by:
-# LOC, Origin, Language, Project.
+# LOC, Project, Origin. Language seems to barely not make it in.
 
 
 projpred2 = stan_glm(aucec ~ predictors,
@@ -106,8 +113,6 @@ projpred2 = stan_glm(aucec ~ predictors,
 summary(projpred2) # Rhat and n_eff look good
 
 vs2 = varsel(projpred2, method = 'forward')
-vs2$vind
-suggest_size(vs2)
 cvs2 = cv_varsel(projpred2, method = 'forward')
 cvs2$vind
 suggest_size(cvs2)
@@ -115,7 +120,9 @@ varsel_plot(cvs2, stats = c('elpd', 'rmse'), deltas=T)
 
 mcmc_areas(as.matrix(projpred2), pars = c('(Intercept)', names(cvs2$vind[1:suggest_size(cvs2)]), 'sigma'))
 # Based on this, the AUCEC score for the linespots algorithm is best predicted by:
-# Origin, LOC, Language, Project.
+# LOC, Project, Origin. Language seems to barely not make it in.
+
+
 
 # For the fourth research question we need both linespots and bugspots
 predictors = tibble(d$Algorithm, d$Commits, d$Domain, d$LOC, d$Language, d$Origin, d$Project, d$Time, d$Weighting)
@@ -124,10 +131,13 @@ predictors = matrix(as.numeric(unlist(predictors)),nrow=nrow(predictors))
 exam = tibble(d$EXAM)
 exam = matrix(as.numeric(unlist(exam)),nrow=nrow(exam))
 
-aucec = tibble(d$AUCEC)
+exam25 = tibble(d$EXAM25)
+exam25 = matrix(as.numeric(unlist(exam25)),nrow=nrow(exam25))
+
+aucec = tibble(d$AUCECEXAM)
 aucec = matrix(as.numeric(unlist(aucec)),nrow=nrow(aucec))
 
-bs.data = tibble(predictors, exam, aucec)
+bs.data = tibble(predictors, exam, aucec, exam25)
 
 n = nrow(bs.data) # Rows in the d frame
 D = ncol(predictors) # Predictors in the model
@@ -141,9 +151,6 @@ projpred3 = stan_glm(exam ~ predictors,
                     chains = 4, iter = 2000, seed = SEED)
 summary(projpred3) # Rhat and n_eff look good
 
-vs3 = varsel(projpred3, method = 'forward')
-vs3$vind
-suggest_size(vs3)
 cvs3 = cv_varsel(projpred3, method = 'forward')
 cvs3$vind
 suggest_size(cvs3)
@@ -151,7 +158,7 @@ varsel_plot(cvs3, stats = c('elpd', 'rmse'), deltas=T)
 
 mcmc_areas(as.matrix(projpred3), pars = c('(Intercept)', names(cvs3$vind[1:suggest_size(cvs3)]), 'sigma'))
 # Based on this, the exam score for both algorithms is best predicted by:
-# Domain, Language, LOC, Origin
+# LOC, Project, Origin, Language
 
 
 projpred4 = stan_glm(aucec ~ predictors,
@@ -159,9 +166,6 @@ projpred4 = stan_glm(aucec ~ predictors,
                      chains = 4, iter = 2000, seed = SEED)
 summary(projpred4) # Rhat and n_eff look good
 
-vs4 = varsel(projpred4, method = 'forward')
-vs4$vind
-suggest_size(vs4)
 cvs4 = cv_varsel(projpred4, method = 'forward')
 cvs4$vind
 suggest_size(cvs4)
@@ -169,7 +173,22 @@ varsel_plot(cvs4, stats = c('elpd', 'rmse'), deltas=T)
 
 mcmc_areas(as.matrix(projpred4), pars = c('(Intercept)', names(cvs4$vind[1:suggest_size(cvs4)]), 'sigma'))
 # Based on this, the AUCEC score for both algorithms is best predicted by:
-# Domain, Language, LOC, Origin
+# LOC, Project, Origin, Language
 
 
-#save(projpred1, projpred2, projpred3, projpred4, file="projpred.RData")
+projpred5 = stan_glm(exam25 ~ predictors,
+                     family = gaussian(), data = bs.data, prior = prior_coeff,
+                     chains = 4, iter = 2000, seed = SEED)
+summary(projpred5) # Rhat and n_eff look good
+
+cvs5 = cv_varsel(projpred5, method = 'forward')
+cvs5$vind
+suggest_size(cvs5)
+varsel_plot(cvs5, stats = c('elpd', 'rmse'), deltas=T)
+# While suggest_size suggests 9 predictors, varsel_plot makes it seem like 4 or 5 might be a good point instead.
+# That would give LOC, Algorithm, Project, Language and maybe Domain as predictors.
+
+mcmc_areas(as.matrix(projpred5), pars = c('(Intercept)', names(cvs5$vind[1:suggest_size(cvs5)]), 'sigma'))
+
+
+save(projpred1, projpred2, projpred3, projpred4, projpred5, file="projpred.RData")

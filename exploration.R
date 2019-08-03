@@ -1,5 +1,4 @@
 library(tidyverse)
-library(dplyr)
 
 #setwd("~/Documents/dev/linespots/linespots-analysis/")
 
@@ -58,11 +57,16 @@ d$Commits = (d$Commits - mean(d$Commits)) / sd(d$Commits)
 d$LOC = (d$LOC - mean(d$LOC)) / sd(d$LOC)
 d$Origin = (d$Origin - mean(d$Origin)) / sd(d$Origin)
 
+plot(density(d$AUCECEXAM))
+plot(density(d$EXAM))
+d = subset(d, d$FixCount != 0)
+plot(density(d$AUCECEXAM))
+plot(density(d$EXAM))
 # There are results from one run, where no fix was found in the pseudo future.
 # There is no value in that data so we remove it.
-zero_entries = subset(d, d$AUCECDENSITY == 0)
-zero_entries$FixCount
-d = subset(d, d$FixCount != 0)
+# Afterwards both EXAM and AUCEC look kind of normal
+plot(density(d$EXAM25))
+
 
 # Create data frames for only the Linespots and Bugspots data.
 ls.df = subset(d, d$Algorithm == "Linespots")
