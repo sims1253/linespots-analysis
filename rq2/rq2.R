@@ -4,7 +4,7 @@ library(bayesplot)
 library(loo)
 options(mc.cores = parallel::detectCores())
 
-SEED = 140919 # I asked my girlfriend for a number
+SEED = 140919 # The day I move in with my gf
 
 setwd("~/Documents/dev/linespots/linespots-analysis/rq2")
 load(file="m1.RData")

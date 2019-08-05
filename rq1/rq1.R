@@ -360,12 +360,11 @@ save(m2.1, m2.2, m2.3, m2.4, m2.5, m2.6, m2.7, file="m2.RData")
 
 # based on m1.3
 m3.1 = brm(
-  formula = EXAM ~ 1 + Weighting + LOC + (1|Project),
+  formula = EXAM ~ 0 + Weighting + LOC + (1|Project),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.5), class=b),
+    prior(normal(0,1), class=b),
     prior(cauchy(0,0.5), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
@@ -377,6 +376,8 @@ m3.1 = brm(
   control = list(adapt_delta=0.999, max_treedepth=15),
   seed = SEED
 )
+
+loo3.1 = loo(m3.1)
 plot(m3.1)
 summary(m3.1)
 # Intercept and group intercept don't sample too well. The intercept is even unter 10%
@@ -391,12 +392,11 @@ mcmc_nuts_energy(np, lp)
 
 # based on m1.5
 m3.2 = brm(
-  formula = EXAM ~ 1 + Weighting + LOC + Origin + (1|Project) + (1|Language),
+  formula = EXAM ~ 0 + Weighting + LOC + Origin + (1|Project) + (1|Language),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.5), class=b),
+    prior(normal(0,1), class=b),
     prior(cauchy(0,0.5), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
@@ -408,6 +408,7 @@ m3.2 = brm(
   control = list(adapt_delta=0.999, max_treedepth=15),
   seed = SEED
 )
+loo3.2 = loo(m3.2)
 plot(m3.2)
 summary(m3.2)
 # Samples a lot better than m3.1 and all diagnostics look fine.
@@ -421,12 +422,11 @@ mcmc_nuts_energy(np, lp)
 
 # based on m1.7
 m3.3 = brm(
-  formula = EXAM ~ 1 + Weighting +LOC + Origin + (1|Domain) + (1|Project) + (1|Language),
+  formula = EXAM ~ 0 + Weighting +LOC + Origin + (1|Domain) + (1|Project) + (1|Language),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.5), class=b),
+    prior(normal(0,1), class=b),
     prior(cauchy(0,0.5), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
@@ -438,6 +438,7 @@ m3.3 = brm(
   control = list(adapt_delta=0.999, max_treedepth=15),
   seed = SEED
 )
+loo3.3= loo(m3.3)
 plot(m3.3)
 summary(m3.3)
 # Samples similarly good to m3.2 and all diagnostics seem fine.
@@ -451,7 +452,7 @@ mcmc_nuts_treedepth(np, lp)
 mcmc_nuts_energy(np, lp)
 
 
-loo_compare(loo(m3.1), loo(m3.2), loo(m3.3))
+loo_compare(loo3.1, loo3.2, loo3.3)
 # All three models seem to have identical explanatory power  in terms of loo.
 
 stanplot(m3.1, type="areas", pars="b_Weight")
@@ -482,6 +483,14 @@ abline(v=quants[1])
 abline(v=quants[2])
 abline(v=mean(lin.effect1))
 abline(v=median(lin.effect1), lty="dotted")
+
+
+plot(density(google, adjust = 0.1), main = "W1 - W2")
+quants = quantile(google, c(0.025, 0.975))
+abline(v=quants[1])
+abline(v=quants[2])
+abline(v=mean(google))
+abline(v=median(google), lty="dotted")
 
 plot(density(flat.effect1, adjust = 0.1))
 quants = quantile(flat.effect1, c(0.025, 0.975))
@@ -535,12 +544,11 @@ abline(v=median(flat.effect3), lty="dotted")
 
 # based on 2.3
 m4.1 = brm(
-  formula = AUCECEXAM ~ 1 + Weighting + LOC + (1|Project),
+  formula = AUCECEXAM ~ 0 + Weighting + LOC + (1|Project),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.5), class=b),
+    prior(normal(0,1), class=b),
     prior(cauchy(0,0.5), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
@@ -566,12 +574,11 @@ mcmc_nuts_energy(np, lp)
 
 # based on 2.7
 m4.2 = brm(
-  formula = AUCECEXAM ~ 1 + Weighting + Origin + LOC + (1|Domain) + (1|Project) + (1|Language),
+  formula = AUCECEXAM ~ 0 + Weighting + Origin + LOC + (1|Domain) + (1|Project) + (1|Language),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.5), class=b),
+    prior(normal(0,1), class=b),
     prior(cauchy(0,0.5), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
@@ -653,3 +660,32 @@ abline(v=median(flat.effect2), lty="dotted")
 
 save(m3.1, m3.2, m3.3, file="m3.RData")
 save(m4.1, m4.2, file="m4.RData")
+
+
+
+
+
+
+
+
+##################################################################
+
+m5.1 = brm(
+  formula = EXAM25 ~ 0 + Weighting + LOC + (1|Project),
+  data = ls.df,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,1), class=b),
+    prior(cauchy(0,0.5), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  iter = 10000,
+  warmup = 2500,
+  chains = 4,
+  cores = parallel::detectCores(),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.999),
+  seed = SEED
+)
+
+save(m5.1, m4.2, file="m5.RData")

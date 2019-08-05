@@ -4,7 +4,7 @@ library(bayesplot)
 library(loo)
 options(mc.cores = parallel::detectCores())
 
-SEED = 140919 # I asked my girlfriend for a number
+SEED = 140919 # The day I move in with my gf
 
 setwd("~/Documents/dev/linespots/linespots-analysis/rq4")
 load(file="m1.RData")
@@ -308,12 +308,11 @@ save(m2.1, m2.2, m2.3, m2.4, m2.5, m2.6, file="m2.RData")
 
 # based on m1.3
 m3.1 = brm(
-  formula = EXAM ~ 1 + Algorithm + LOC + (1|Project),
+  formula = EXAM ~ 0 + Algorithm + LOC + (1|Project),
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.5), class=b),
+    prior(normal(1,0.05), class=b),
     prior(cauchy(0,0.5), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
@@ -322,22 +321,29 @@ m3.1 = brm(
   chains = 4,
   cores = parallel::detectCores(),
   sample_prior = TRUE,
-  control = list(adapt_delta=0.9999),
+  control = list(adapt_delta=0.9999, max_treedepth=15),
   seed = SEED
 )
 
 save(m3.1, file="m3.RData")
 
+stanplot(m3.1, type="areas", pars="b_Algorithm")
+post1 = posterior_samples(m3.1)
+post1$diff_algo = inv_logit_scaled(post1$b_AlgorithmLinespots) - inv_logit_scaled(post1$b_AlgorithmBugspots)
+plot(density(post1$diff_algo))
+abline(v = quantile(post1$diff_algo, c(0.025, 0.975))[1])
+abline(v = quantile(post1$diff_algo, c(0.025, 0.975))[2])
+abline(v = median(post1$diff_algo), lty = "dotted")
+
 ###################################################################
 
 # based on 2.3
 m4.1 = brm(
-  formula = AUCECEXAM ~ 1 + Algorithm + LOC + (1|Project),
+  formula = AUCECEXAM ~ 0 + Algorithm + LOC + (1|Project),
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.5), class=b),
+    prior(normal(1,0.05), class=b),
     prior(cauchy(0,0.5), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
@@ -346,8 +352,79 @@ m4.1 = brm(
   chains = 4,
   cores = parallel::detectCores(),
   sample_prior = TRUE,
-  control = list(adapt_delta=0.999),
+  control = list(adapt_delta=0.9999, max_treedepth = 15),
   seed = SEED
 )
 
 save(m4.1, file="m4.RData")
+
+
+
+
+#################################################################
+
+# As a final test
+
+m5.1 = brm(
+  formula = EXAM25 ~ 0 + Algorithm + LOC + (1|Project),
+  data = d,
+  family=Beta(),
+  prior = c(
+    prior(normal(1,0.05), class=b),
+    prior(cauchy(0,0.5), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  iter = 10000,
+  warmup = 2500,
+  chains = 4,
+  cores = parallel::detectCores(),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.9999, max_treedepth = 15),
+  seed = SEED
+)
+
+stanplot(m5.1, type="areas", pars="b_Algorithm")
+post5 = posterior_samples(m5.1)
+post5$diff_algo = inv_logit_scaled(post5$b_AlgorithmLinespots) - inv_logit_scaled(post5$b_AlgorithmBugspots)
+plot(density(post5$diff_algo, adjust = 0.1))
+abline(v = quantile(post5$diff_algo, c(0.025, 0.975))[1])
+abline(v = quantile(post5$diff_algo, c(0.025, 0.975))[2])
+abline(v = median(post5$diff_algo), lty = "dotted")
+
+save(m5.1, m5.2, m5.3, file="m5.RData")
+
+m5.2 = brm(
+  formula = EXAM25 ~ 0 + Algorithm  + Weighting + Time + (1|Project),
+  data = d,
+  family=Beta(),
+  prior = c(
+    prior(normal(1,0.05), class=b),
+    prior(cauchy(0,0.5), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  iter = 10000,
+  warmup = 2500,
+  chains = 4,
+  cores = parallel::detectCores(),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.9999, max_treedepth = 15),
+  seed = SEED
+)
+
+m5.3 = brm(
+  formula = EXAM25 ~ 0 + Algorithm  + Weighting + Time + LOC + (1|Project),
+  data = d,
+  family=Beta(),
+  prior = c(
+    prior(normal(1,0.05), class=b),
+    prior(cauchy(0,0.5), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  iter = 10000,
+  warmup = 2500,
+  chains = 4,
+  cores = parallel::detectCores(),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.9999, max_treedepth = 15),
+  seed = SEED
+)
