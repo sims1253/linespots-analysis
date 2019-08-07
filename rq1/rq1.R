@@ -359,15 +359,13 @@ save(m2.1, m2.2, m2.3, m2.4, m2.5, m2.6, m2.7, file="m2.RData")
 
 # based on m1.3
 m3.1 = brm(
-  formula = EXAM ~ 0 + Weighting + LOC + (1|Project),
+  formula = EXAM ~ 1 + Weighting + LOC + (1|Project),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=b, coef = "Weightingflat_weighting_function"),
-    prior(normal(0,1), class=b, coef = "Weightinggoogle_weighting_function"),
-    prior(normal(0,1), class=b, coef = "Weightinglinear_weighting_function"),
-    prior(normal(0,0.5), class=b, coef = "LOC"),
-    prior(cauchy(0,0.1), class=sd),
+    prior(normal(0, 0.5), class=Intercept),
+    prior(normal(0, 0.5), class=b),
+    prior(cauchy(0, 0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   iter = 10000,
@@ -385,19 +383,14 @@ summary(m3.1)
 # The intercept doesn't sample well. We try the least complex model that has over 10% n_eff
 # for all coefficients.
 
-
-# based on m1.5
 m3.2 = brm(
-  formula = EXAM ~ 0 + Weighting + LOC + Origin + (1|Project) + (1|Language),
+  formula = EXAM ~ 1 + Weighting + LOC + (1|Project) + (1|Language),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=b, coef = "Weightingflat_weighting_function"),
-    prior(normal(0,1), class=b, coef = "Weightinggoogle_weighting_function"),
-    prior(normal(0,1), class=b, coef = "Weightinglinear_weighting_function"),
-    prior(normal(0,0.2), class=b, coef = "LOC"),
-    prior(normal(0, 0.2), class=b, coef = "Origin"),
-    prior(cauchy(0,0.5), class=sd),
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   iter = 10000,
@@ -408,6 +401,7 @@ m3.2 = brm(
   control = list(adapt_delta=0.999, max_treedepth=15),
   seed = SEED
 )
+loo3.3 = loo(m3.3)
 loo3.2 = loo(m3.2)
 plot(m3.2)
 summary(m3.2)
@@ -420,7 +414,7 @@ mcmc_nuts_stepsize(np, lp)
 mcmc_nuts_treedepth(np, lp)
 mcmc_nuts_energy(np, lp)
 
-loo_compare(loo3.1, loo3.2)
+loo_compare(loo3.1, loo3.2, loo3.3)
 # Both models seem to have the same performance in terms of loo.
 # We will look at both initially to see the difference.
 
@@ -482,14 +476,12 @@ save(m3.1, m3.2, file="m3.RData")
 
 # based on 2.3
 m4.1 = brm(
-  formula = AUCECEXAM ~ 0 + Weighting + LOC + (1|Project),
+  formula = AUCECEXAM ~ 1 + Weighting + LOC + (1|Project),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=b, coef = "Weightingflat_weighting_function"),
-    prior(normal(0,1), class=b, coef = "Weightinggoogle_weighting_function"),
-    prior(normal(0,1), class=b, coef = "Weightinglinear_weighting_function"),
-    prior(normal(0,0.5), class=b, coef = "LOC"),
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
     prior(cauchy(0,0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
@@ -507,19 +499,14 @@ summary(m4.1)
 # Seems like m4.1 has problems sampling with low n_eff. We try the least complex model that has over 10% n_eff
 # for all coefficients.
 
-
-# based on 2.5
 m4.2 = brm(
-  formula = AUCECEXAM ~ 0 + Weighting + LOC + Origin + (1|Project) + (1|Language),
+  formula = AUCECEXAM ~ 1 + Weighting + LOC + (1|Project) + (1|Language),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=b, coef = "Weightingflat_weighting_function"),
-    prior(normal(0,1), class=b, coef = "Weightinggoogle_weighting_function"),
-    prior(normal(0,1), class=b, coef = "Weightinglinear_weighting_function"),
-    prior(normal(0,0.2), class=b, coef = "LOC"),
-    prior(normal(0, 0.2), class=b, coef = "Origin"),
-    prior(cauchy(0,0.5), class=sd),
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   iter = 10000,
