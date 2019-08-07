@@ -155,12 +155,12 @@ sensitivity3(1, 0.5, 0.5)  # This looks ok.
 # prior(gamma(0.1, 0.1), class=phi)
 
 
-sensitivity4 <- function(parameters, var_intercepts) {
+sensitivity4 <- function(weight, loc, var_intercepts) {
   set.seed(140919)
   N = 100
   
-  b_weighting = rnorm(N, 1, parameters)
-  b_loc = rnorm(N, 0, parameters)
+  b_weighting = rnorm(N, 0, weight)
+  b_loc = rnorm(N, 0, loc)
   m_project = rhcauchy(N, var_intercepts)
   
   b_project = rep(0, N)
@@ -168,20 +168,45 @@ sensitivity4 <- function(parameters, var_intercepts) {
     b_project[i] = rnorm(1, m_project, var_intercepts)
   }
   
-  for (w in 1:2){
-    plot(NULL, xlim = c(-1, 5), ylim = c(0, 1))
-    for (i in 1:N) {
-      curve(exp(b_weighting[i] * w + b_loc[i] * x + b_project[i]) / (
-        1 + exp(b_weighting[i] * w + b_loc[i] * x + b_project[i])
-      ) ,
-      add = TRUE)
-    }  
+  plot(NULL, xlim = c(-1, 5), ylim = c(0, 1))
+  for (i in 1:N) {
+    curve(exp(b_weighting[i] + b_loc[i] * x + b_project[i]) /
+         (1 + exp(b_weighting[i] + b_loc[i] * x + b_project[i])) ,
+          add = TRUE)
+  }
+  
+  
+}
+
+sensitivity4(1, 0.5, 0.1)
+
+
+
+sensitivity5 <- function(weight, loc, origin, var_intercepts) {
+  set.seed(140919)
+  N = 100
+  
+  b_weighting = rnorm(N, 0, weight)
+  b_loc = rnorm(N, 0, loc)
+  b_origin = rnorm(N, 0, origin)
+  m_project = rhcauchy(N, var_intercepts)
+  
+  b_project = rep(0, N)
+  for (i in 1:N) {
+    b_project[i] = rnorm(1, m_project, var_intercepts)
+  }
+  
+  plot(NULL, xlim = c(-1, 5), ylim = c(0, 1))
+  for (i in 1:N) {
+    curve(exp(b_weighting[i] + b_loc[i] * x + b_origin[i] * x + b_project[i]) / (1 + exp(
+      b_weighting[i] + b_loc[i] * x + b_origin[i] * x + b_project[i]
+    )) ,
+    add = TRUE)
   }
   
 }
 
-sensitivity4(1, 0.05)
-
+sensitivity5(1, 0.2, 0.2, 0.1)
 
 
 

@@ -211,11 +211,10 @@ loo_compare(loo1.1, loo1.2, loo1.3, loo1.4, loo1.5, loo1.6, loo1.7)
 # Using se_diff > 2*elpd_diff for a significantly better model, models 3 to 7 are
 # essentially equally good. Model 4 is right on the 2* mark.
 # In this case, model 3 would be the preferred one as it has the fewest predictors.
-# We can also keep model 5 and 7 for comparison as the highest ranked and most complex model.
+# But as 3 has sampling problems, we will use the simplest model that also samples
+# properly, which is model 7.
 # And while we see transitions exceeding tree depth, that is not a validity concern
 # but only a efficiency concern.
-
-# Model 7 seems to sample better
 
 save(m1.1, m1.2, m1.3, m1.4, m1.5, m1.6, m1.7, file="m1.RData")
 
@@ -364,8 +363,11 @@ m3.1 = brm(
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=b),
-    prior(cauchy(0,0.5), class=sd),
+    prior(normal(0,1), class=b, coef = "Weightingflat_weighting_function"),
+    prior(normal(0,1), class=b, coef = "Weightinggoogle_weighting_function"),
+    prior(normal(0,1), class=b, coef = "Weightinglinear_weighting_function"),
+    prior(normal(0,0.5), class=b, coef = "LOC"),
+    prior(cauchy(0,0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   iter = 10000,
@@ -380,15 +382,9 @@ m3.1 = brm(
 loo3.1 = loo(m3.1)
 plot(m3.1)
 summary(m3.1)
-# Intercept and group intercept don't sample too well. The intercept is even unter 10%
-# Other diagnostics look good from what I can tell.
-np <- nuts_params(m3.1)
-lp <- log_posterior(m3.1)
-mcmc_nuts_acceptance(np, lp)
-mcmc_nuts_divergence(np, lp)
-mcmc_nuts_stepsize(np, lp)
-mcmc_nuts_treedepth(np, lp)
-mcmc_nuts_energy(np, lp)
+# The intercept doesn't sample well. We try the least complex model that has over 10% n_eff
+# for all coefficients.
+
 
 # based on m1.5
 m3.2 = brm(
@@ -396,7 +392,11 @@ m3.2 = brm(
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=b),
+    prior(normal(0,1), class=b, coef = "Weightingflat_weighting_function"),
+    prior(normal(0,1), class=b, coef = "Weightinggoogle_weighting_function"),
+    prior(normal(0,1), class=b, coef = "Weightinglinear_weighting_function"),
+    prior(normal(0,0.2), class=b, coef = "LOC"),
+    prior(normal(0, 0.2), class=b, coef = "Origin"),
     prior(cauchy(0,0.5), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
@@ -420,123 +420,61 @@ mcmc_nuts_stepsize(np, lp)
 mcmc_nuts_treedepth(np, lp)
 mcmc_nuts_energy(np, lp)
 
-# based on m1.7
-m3.3 = brm(
-  formula = EXAM ~ 0 + Weighting +LOC + Origin + (1|Domain) + (1|Project) + (1|Language),
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  iter = 10000,
-  warmup = 2500,
-  chains = 4,
-  cores = parallel::detectCores(),
-  sample_prior = TRUE,
-  control = list(adapt_delta=0.999, max_treedepth=15),
-  seed = SEED
-)
-loo3.3= loo(m3.3)
-plot(m3.3)
-summary(m3.3)
-# Samples similarly good to m3.2 and all diagnostics seem fine.
+loo_compare(loo3.1, loo3.2)
+# Both models seem to have the same performance in terms of loo.
+# We will look at both initially to see the difference.
 
-np <- nuts_params(m3.3)
-lp <- log_posterior(m3.3)
-mcmc_nuts_acceptance(np, lp)
-mcmc_nuts_divergence(np, lp)
-mcmc_nuts_stepsize(np, lp)
-mcmc_nuts_treedepth(np, lp)
-mcmc_nuts_energy(np, lp)
+fixef(m3.1, summary=TRUE)[1:3,]
+fixef(m3.2, summary=TRUE)[1:3,]
+# While the estimated means are similar, the estimated errors differ. m3.2 has more uncertainty.
+# Both however seem to consider the coefficiencts to be very similar.
 
+stanplot(m3.1, type="areas", pars="^b_Weight")
+stanplot(m3.2, type="areas", pars="^b_Weight")
+# Visualization of the numbers before.
 
-loo_compare(loo3.1, loo3.2, loo3.3)
-# All three models seem to have identical explanatory power  in terms of loo.
+# We will analyze m3.2 as it has the better sampling behaviour. While it is more uncertain
+# we should accept the uncertainty.
+hypothesis(m3.2, "Weightinglinear_weighting_function=Weightinggoogle_weighting_function")
+plot(hypothesis(m3.2, "Weightinglinear_weighting_function=Weightinggoogle_weighting_function"))
+hypothesis(m3.2, "Weightingflat_weighting_function=Weightinggoogle_weighting_function")
+plot(hypothesis(m3.2, "Weightingflat_weighting_function=Weightinggoogle_weighting_function"))
+hypothesis(m3.2, "Weightingflat_weighting_function=Weightinglinear_weighting_function")
+plot(hypothesis(m3.2, "Weightingflat_weighting_function=Weightinglinear_weighting_function"))
+# Using hypothesis testing, it seems that there is no difference between any of the effects
+# of the weighting functions.
+# We will try to put numbers on it:
 
-stanplot(m3.1, type="areas", pars="b_Weight")
-stanplot(m3.2, type="areas", pars="b_Weight")
-stanplot(m3.3, type="areas", pars="b_Weight")
-# Both weighting functions seem to have no significant effects but habe more propability mass
-# on the negative side. This is hard to interpret due to the linking function though.
+post.google = posterior_predict(m3.2, newdata = subset(ls.df, ls.df$Weighting == "google_weighting_function"), seed=SEED)
+post.linear = posterior_predict(m3.2, newdata = subset(ls.df, ls.df$Weighting == "linear_weighting_function"), seed=SEED)
+post.flat = posterior_predict(m3.2, newdata = subset(ls.df, ls.df$Weighting == "flat_weighting_function"), seed=SEED)
 
-plot(hypothesis(m3.1, "Weightinglinear_weighting_function=0"))
-plot(hypothesis(m3.1, "Weightingflat_weighting_function=0"))
+diff_gl = post.google - post.linear
+diff_gf = post.google - post.flat
+diff_lf = post.linear - post.flat
 
-plot(hypothesis(m3.2, "Weightinglinear_weighting_function=0"))
-plot(hypothesis(m3.2, "Weightingflat_weighting_function=0"))
+plot(density(diff_gl))
+for(i in seq(-4,4,2)){
+  abline(v=mean(diff_gl)+(i * sd(diff_gl)))
+}
+gl.intervals = mean(diff_gl)+(seq(-4,4,2) * sd(diff_gl))
 
-plot(hypothesis(m3.3, "Weightinglinear_weighting_function=0"))
-plot(hypothesis(m3.3, "Weightingflat_weighting_function=0"))
-# The posteriors for all weighting functions are very focused around 0 which further supports the idea
-# that they have no impact.
+plot(density(diff_gf))
+for(i in seq(-4,4,2)){
+  abline(v=mean(diff_gf)+(i * sd(diff_gf)))
+}
+gf.intervals = mean(diff_gf)+(seq(-4,4,2) * sd(diff_gf))
 
-# Lets calculate the difference between the google weighting function (as part of the intercept)
-# and the other two weighting functions for all three models.
-post1 = posterior_samples(m3.1)
-lin.effect1 = inv_logit_scaled(post1$b_Intercept + post1$b_Weightinglinear_weighting_function) - inv_logit_scaled(post1$b_Intercept)
-flat.effect1 = inv_logit_scaled(post1$b_Intercept + post1$b_Weightingflat_weighting_function) - inv_logit_scaled(post1$b_Intercept)
-plot(density(lin.effect1, adjust = 0.1))
-quants = quantile(lin.effect1, c(0.025, 0.975))
-abline(v=quants[1])
-abline(v=quants[2])
-abline(v=mean(lin.effect1))
-abline(v=median(lin.effect1), lty="dotted")
+plot(density(diff_lf))
+for(i in seq(-4,4,2)){
+  abline(v=mean(diff_lf)+(i * sd(diff_lf)))
+}
+gf.intervals = mean(diff_lf)+(seq(-4,4,2) * sd(diff_lf))
 
+# Based on these numbers, we argue that there is no difference in weighting function effect on EXAM
+# score. This might depend on the depth as we only used one depth.
 
-plot(density(google, adjust = 0.1), main = "W1 - W2")
-quants = quantile(google, c(0.025, 0.975))
-abline(v=quants[1])
-abline(v=quants[2])
-abline(v=mean(google))
-abline(v=median(google), lty="dotted")
-
-plot(density(flat.effect1, adjust = 0.1))
-quants = quantile(flat.effect1, c(0.025, 0.975))
-abline(v=quants[1])
-abline(v=quants[2])
-abline(v=mean(flat.effect1))
-abline(v=median(flat.effect1), lty="dotted")
-
-post2 = posterior_samples(m3.2)
-lin.effect2 = inv_logit_scaled(post1$b_Intercept + post2$b_Weightinglinear_weighting_function) - inv_logit_scaled(post2$b_Intercept)
-flat.effect2 = inv_logit_scaled(post1$b_Intercept + post2$b_Weightingflat_weighting_function) - inv_logit_scaled(post2$b_Intercept)
-plot(density(lin.effect2, adjust = 0.1))
-quants = quantile(lin.effect2, c(0.025, 0.975))
-abline(v=quants[1])
-abline(v=quants[2])
-abline(v=mean(lin.effect2))
-abline(v=median(lin.effect2), lty="dotted")
-
-plot(density(flat.effect2, adjust = 0.1))
-quants = quantile(flat.effect2, c(0.025, 0.975))
-abline(v=quants[1])
-abline(v=quants[2])
-abline(v=mean(flat.effect2))
-abline(v=median(flat.effect2), lty="dotted")
-
-post3 = posterior_samples(m3.3)
-lin.effect3 = inv_logit_scaled(post1$b_Intercept + post3$b_Weightinglinear_weighting_function) - inv_logit_scaled(post3$b_Intercept)
-flat.effect3 = inv_logit_scaled(post1$b_Intercept + post3$b_Weightingflat_weighting_function) - inv_logit_scaled(post3$b_Intercept)
-plot(density(lin.effect3, adjust = 0.1))
-quants = quantile(lin.effect3, c(0.025, 0.975))
-abline(v=quants[1])
-abline(v=quants[2])
-abline(v=mean(lin.effect3))
-abline(v=median(lin.effect3), lty="dotted")
-
-plot(density(flat.effect3, adjust = 0.1))
-quants = quantile(flat.effect3, c(0.025, 0.975))
-abline(v=quants[1])
-abline(v=quants[2])
-abline(v=mean(flat.effect3))
-abline(v=median(flat.effect3), lty="dotted")
-# All three models have large overlaps with 0 for both weighting functions so there seems to be
-# no significant effect. Both the mean and median values are also not consistent positive or negative.
-# Based on this we conclude, that the weighting function does not have a any consistend impact on the
-# EXAM score.
-
+save(m3.1, m3.2, file="m3.RData")
 
 
 ############################################################
@@ -548,8 +486,11 @@ m4.1 = brm(
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=b),
-    prior(cauchy(0,0.5), class=sd),
+    prior(normal(0,1), class=b, coef = "Weightingflat_weighting_function"),
+    prior(normal(0,1), class=b, coef = "Weightinggoogle_weighting_function"),
+    prior(normal(0,1), class=b, coef = "Weightinglinear_weighting_function"),
+    prior(normal(0,0.5), class=b, coef = "LOC"),
+    prior(cauchy(0,0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   iter = 10000,
@@ -560,25 +501,24 @@ m4.1 = brm(
   control = list(adapt_delta=0.999),
   seed = SEED
 )
+loo4.1 = loo(m4.1)
 plot(m4.1)
 summary(m4.1)
-# Seems like m4.1 has problems sampling the Intercept.
-np <- nuts_params(m4.1)
-lp <- log_posterior(m4.1)
-mcmc_nuts_acceptance(np, lp)
-mcmc_nuts_divergence(np, lp)
-mcmc_nuts_stepsize(np, lp)
-mcmc_nuts_treedepth(np, lp)
-mcmc_nuts_energy(np, lp)
-# Diagnostics look good otherwise.
+# Seems like m4.1 has problems sampling with low n_eff. We try the least complex model that has over 10% n_eff
+# for all coefficients.
 
-# based on 2.7
+
+# based on 2.5
 m4.2 = brm(
-  formula = AUCECEXAM ~ 0 + Weighting + Origin + LOC + (1|Domain) + (1|Project) + (1|Language),
+  formula = AUCECEXAM ~ 0 + Weighting + LOC + Origin + (1|Project) + (1|Language),
   data = ls.df,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=b),
+    prior(normal(0,1), class=b, coef = "Weightingflat_weighting_function"),
+    prior(normal(0,1), class=b, coef = "Weightinggoogle_weighting_function"),
+    prior(normal(0,1), class=b, coef = "Weightinglinear_weighting_function"),
+    prior(normal(0,0.2), class=b, coef = "LOC"),
+    prior(normal(0, 0.2), class=b, coef = "Origin"),
     prior(cauchy(0,0.5), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
@@ -587,12 +527,13 @@ m4.2 = brm(
   chains = 4,
   cores = parallel::detectCores(),
   sample_prior = TRUE,
-  control = list(adapt_delta=0.999),
+  control = list(adapt_delta=0.999, max_treedepth=15),
   seed = SEED
 )
+loo4.2 = loo(m4.2)
 plot(m4.2)
 summary(m4.2)
-# Model 4.2 seems to sample a lot better than 4.1.
+# Samples a lot better than m3.1 and all diagnostics look fine.
 np <- nuts_params(m4.2)
 lp <- log_posterior(m4.2)
 mcmc_nuts_acceptance(np, lp)
@@ -600,92 +541,62 @@ mcmc_nuts_divergence(np, lp)
 mcmc_nuts_stepsize(np, lp)
 mcmc_nuts_treedepth(np, lp)
 mcmc_nuts_energy(np, lp)
-# Diagnostics look good.
 
-loo_compare(loo(m4.1), loo(m4.2))
-# The models seem to perform equally good.
+loo_compare(loo4.1, loo4.2)
+# Both models seem to have the same performance in terms of loo.
+# We will look at both initially to see the difference.
 
-stanplot(m4.1, type="areas", pars="b_Weight")
-stanplot(m4.2, type="areas", pars="b_Weight")
-# Again both weighting functions have high overlap with 0 with a little bit more weight on the positive
-# side. Again hard to interpret though.
-plot(hypothesis(m4.1, "Weightinglinear_weighting_function=0"))
-plot(hypothesis(m4.1, "Weightingflat_weighting_function=0"))
 
-plot(hypothesis(m4.2, "Weightinglinear_weighting_function=0"))
-plot(hypothesis(m4.2, "Weightingflat_weighting_function=0"))
-# The posteriors for all weighting functions are very focused around 0 which further supports the idea
-# that they have no impact.
+fixef(m4.1, summary=TRUE)[1:3,]
+fixef(m4.2, summary=TRUE)[1:3,]
+# While the estimated means are similar, the estimated errors differ. m4.2 has more uncertainty.
+# Both however seem to consider the coefficiencts to be very similar around the mean.
 
-# Lets calculate the difference between the google weighting function (as part of the intercept)
-# and the other two weighting functions for all three models again.
-post1 = posterior_samples(m4.1)
-lin.effect1 = inv_logit_scaled(post1$b_Intercept + post1$b_Weightinglinear_weighting_function) - inv_logit_scaled(post1$b_Intercept)
-flat.effect1 = inv_logit_scaled(post1$b_Intercept + post1$b_Weightingflat_weighting_function) - inv_logit_scaled(post1$b_Intercept)
-plot(density(lin.effect1, adjust = 0.1))
-quants = quantile(lin.effect1, c(0.025, 0.975))
-abline(v=quants[1])
-abline(v=quants[2])
-abline(v=mean(lin.effect1))
-abline(v=median(lin.effect1), lty="dotted")
+stanplot(m4.1, type="areas", pars="^b_Weight")
+stanplot(m4.2, type="areas", pars="^b_Weight")
+# Visualization of the numbers before. Again very obvious, that both models predict the different
+# weighting functions to have the same effects.
 
-plot(density(flat.effect1, adjust = 0.1))
-quants = quantile(flat.effect1, c(0.025, 0.975))
-abline(v=quants[1])
-abline(v=quants[2])
-abline(v=mean(flat.effect1))
-abline(v=median(flat.effect1), lty="dotted")
+# We will analyze m3.2 as it has the better sampling behaviour. While it is more uncertain
+# we should accept the uncertainty.
+hypothesis(m4.2, "Weightinglinear_weighting_function=Weightinggoogle_weighting_function")
+plot(hypothesis(m4.2, "Weightinglinear_weighting_function=Weightinggoogle_weighting_function"))
+hypothesis(m4.2, "Weightingflat_weighting_function=Weightinggoogle_weighting_function")
+plot(hypothesis(m4.2, "Weightingflat_weighting_function=Weightinggoogle_weighting_function"))
+hypothesis(m4.2, "Weightingflat_weighting_function=Weightinglinear_weighting_function")
+plot(hypothesis(m4.2, "Weightingflat_weighting_function=Weightinglinear_weighting_function"))
+# Using hypothesis testing, it seems that there is no difference between any of the effects
+# of the weighting functions.
+# We will try to put numbers on it:
 
-post2 = posterior_samples(m4.2)
-lin.effect2 = inv_logit_scaled(post1$b_Intercept + post2$b_Weightinglinear_weighting_function) - inv_logit_scaled(post2$b_Intercept)
-flat.effect2 = inv_logit_scaled(post1$b_Intercept + post2$b_Weightingflat_weighting_function) - inv_logit_scaled(post2$b_Intercept)
-plot(density(lin.effect2, adjust = 0.1))
-quants = quantile(lin.effect2, c(0.025, 0.975))
-abline(v=quants[1])
-abline(v=quants[2])
-abline(v=mean(lin.effect2))
-abline(v=median(lin.effect2), lty="dotted")
+post.google = posterior_predict(m4.2, newdata = subset(ls.df, ls.df$Weighting == "google_weighting_function"), seed=SEED)
+post.linear = posterior_predict(m4.2, newdata = subset(ls.df, ls.df$Weighting == "linear_weighting_function"), seed=SEED)
+post.flat = posterior_predict(m4.2, newdata = subset(ls.df, ls.df$Weighting == "flat_weighting_function"), seed=SEED)
 
-plot(density(flat.effect2, adjust = 0.1))
-quants = quantile(flat.effect2, c(0.025, 0.975))
-abline(v=quants[1])
-abline(v=quants[2])
-abline(v=mean(flat.effect2))
-abline(v=median(flat.effect2), lty="dotted")
+diff_gl = post.google - post.linear
+diff_gf = post.google - post.flat
+diff_lf = post.linear - post.flat
 
-# ABoth models have large overlaps with 0 for both weighting functions so there seems to be
-# no significant effect. Both the mean and median values are also not consistent positive or negative.
-# Based on this we conclude, that the weighting function does not have a any consistend impact on the
-# AUCEC.
+plot(density(diff_gl))
+for(i in seq(-4,4,2)){
+  abline(v=mean(diff_gl)+(i * sd(diff_gl)))
+}
+gl.intervals = mean(diff_gl)+(seq(-4,4,2) * sd(diff_gl))
 
-save(m3.1, m3.2, m3.3, file="m3.RData")
+plot(density(diff_gf))
+for(i in seq(-4,4,2)){
+  abline(v=mean(diff_gf)+(i * sd(diff_gf)))
+}
+gf.intervals = mean(diff_gf)+(seq(-4,4,2) * sd(diff_gf))
+
+plot(density(diff_lf))
+for(i in seq(-4,4,2)){
+  abline(v=mean(diff_lf)+(i * sd(diff_lf)))
+}
+gf.intervals = mean(diff_lf)+(seq(-4,4,2) * sd(diff_lf))
+
+# Based on these numbers, we argue that there is no difference in weighting function effect on EXAM
+# score. This might depend on the depth as we only used one depth.
+
+
 save(m4.1, m4.2, file="m4.RData")
-
-
-
-
-
-
-
-
-##################################################################
-
-m5.1 = brm(
-  formula = EXAM25 ~ 0 + Weighting + LOC + (1|Project),
-  data = ls.df,
-  family=Beta(),
-  prior = c(
-    prior(normal(0,1), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  iter = 10000,
-  warmup = 2500,
-  chains = 4,
-  cores = parallel::detectCores(),
-  sample_prior = TRUE,
-  control = list(adapt_delta=0.999),
-  seed = SEED
-)
-
-save(m5.1, m4.2, file="m5.RData")
