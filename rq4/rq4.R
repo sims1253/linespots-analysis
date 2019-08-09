@@ -92,7 +92,7 @@ m1.1 = brm(
   family=Beta(),
   prior = c(
     prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.05), class=b),
+    prior(normal(0,0.5), class=b),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
@@ -107,7 +107,7 @@ m1.2 = brm(
   family=Beta(),
   prior = c(
     prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.05), class=b),
+    prior(normal(0,0.5), class=b),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
@@ -120,9 +120,9 @@ m1.3 = brm(
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.05), class=b),
-    prior(cauchy(0,0.05), class=sd),
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
@@ -136,9 +136,9 @@ m1.4 = brm(
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.05), class=b),
-    prior(cauchy(0,0.05), class=sd),
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
@@ -152,14 +152,14 @@ m1.5 = brm(
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.05), class=b),
-    prior(cauchy(0,0.05), class=sd),
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
-  control = list(adapt_delta=0.999),
+  control = list(adapt_delta=0.999, max_treedepth=15),
   seed = SEED
 )
 
@@ -168,14 +168,14 @@ m1.6 = brm(
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.01), class=b),
-    prior(cauchy(0,0.01), class=sd),
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
-  control = list(adapt_delta=0.9999),
+  control = list(adapt_delta=0.9999, max_treedepth=15),
   seed = SEED
 )
 
@@ -187,10 +187,9 @@ loo1.5 = loo(m1.5)
 loo1.6 = loo(m1.6)
 
 loo_compare(loo1.1, loo1.2, loo1.3, loo1.4, loo1.5, loo1.6)
-
-
 save(m1.1, m1.2, m1.3, m1.4, m1.5, m1.6, file="m1.RData")
 summary(m1.3)
+summary(m1.5)
 
 
 # We repeat the same process for the AUCEC output.
@@ -201,7 +200,7 @@ m2.1 = brm(
   family=Beta(),
   prior = c(
     prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.05), class=b),
+    prior(normal(0,0.5), class=b),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
@@ -216,7 +215,7 @@ m2.2 = brm(
   family=Beta(),
   prior = c(
     prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.05), class=b),
+    prior(normal(0,0.5), class=b),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
@@ -229,9 +228,9 @@ m2.3 = brm(
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.05), class=b),
-    prior(cauchy(0,0.05), class=sd),
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
@@ -245,9 +244,9 @@ m2.4 = brm(
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.05), class=b),
-    prior(cauchy(0,0.05), class=sd),
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
@@ -261,14 +260,14 @@ m2.5 = brm(
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.05), class=b),
-    prior(cauchy(0,0.05), class=sd),
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
-  control = list(adapt_delta=0.99),
+  control = list(adapt_delta=0.99, max_treedepth=15),
   seed = SEED
 )
 
@@ -277,14 +276,14 @@ m2.6 = brm(
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.01), class=b),
-    prior(cauchy(0,0.01), class=sd),
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   chains = 4,
   cores = parallel::detectCores(),
-  control = list(adapt_delta=0.999),
+  control = list(adapt_delta=0.999, max_treedepth=15),
   seed = SEED
 )
 
@@ -296,7 +295,9 @@ loo2.5 = loo(m2.5)
 loo2.6 = loo(m2.6)
 
 loo_compare(loo2.1, loo2.2, loo2.3, loo2.4, loo2.5, loo2.6)
-summary(m2.6)
+summary(m2.3)
+summary(m2.4)
+summary(m2.5)
 
 
 save(m2.1, m2.2, m2.3, m2.4, m2.5, m2.6, file="m2.RData")
@@ -308,12 +309,13 @@ save(m2.1, m2.2, m2.3, m2.4, m2.5, m2.6, file="m2.RData")
 
 # based on m1.3
 m3.1 = brm(
-  formula = EXAM ~ 0 + Algorithm + LOC + (1|Project),
+  formula = EXAM ~ 1 + Algorithm + LOC + (1|Project),
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(1,0.05), class=b),
-    prior(cauchy(0,0.5), class=sd),
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   iter = 10000,
@@ -324,27 +326,45 @@ m3.1 = brm(
   control = list(adapt_delta=0.9999, max_treedepth=15),
   seed = SEED
 )
+summary(m3.1)
+loo3.1 = loo(m3.1)
 
-save(m3.1, file="m3.RData")
+m3.2 = brm(
+  formula = EXAM ~ 1 + Algorithm + LOC + (1|Project) + (1|Language),
+  data = d,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  iter = 10000,
+  warmup = 2500,
+  chains = 4,
+  cores = parallel::detectCores(),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.9999, max_treedepth=15),
+  seed = SEED
+)
+summary(m3.2)
+loo3.2 = loo(m3.2)
 
-stanplot(m3.1, type="areas", pars="b_Algorithm")
-post1 = posterior_samples(m3.1)
-post1$diff_algo = inv_logit_scaled(post1$b_AlgorithmLinespots) - inv_logit_scaled(post1$b_AlgorithmBugspots)
-plot(density(post1$diff_algo))
-abline(v = quantile(post1$diff_algo, c(0.025, 0.975))[1])
-abline(v = quantile(post1$diff_algo, c(0.025, 0.975))[2])
-abline(v = median(post1$diff_algo), lty = "dotted")
+
+loo_compare(loo3.1, loo3.2)
+save(m3.1, m3.2, file="m3.RData")
 
 ###################################################################
 
 # based on 2.3
 m4.1 = brm(
-  formula = AUCECEXAM ~ 0 + Algorithm + LOC + (1|Project),
+  formula = AUCECEXAM ~ 1 + Algorithm + LOC + (1|Project),
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(1,0.05), class=b),
-    prior(cauchy(0,0.5), class=sd),
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   iter = 10000,
@@ -355,23 +375,17 @@ m4.1 = brm(
   control = list(adapt_delta=0.9999, max_treedepth = 15),
   seed = SEED
 )
+summary(m4.1)
+loo4.1 = loo(m4.1)
 
-save(m4.1, file="m4.RData")
-
-
-
-
-#################################################################
-
-# As a final test
-
-m5.1 = brm(
-  formula = EXAM25 ~ 0 + Algorithm + LOC + (1|Project),
+m4.2 = brm(
+  formula = AUCECEXAM ~ 1 + Algorithm + LOC + (1|Project) + (1|Language),
   data = d,
   family=Beta(),
   prior = c(
-    prior(normal(1,0.05), class=b),
-    prior(cauchy(0,0.5), class=sd),
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
     prior(gamma(0.1, 0.1), class=phi)
   ),
   iter = 10000,
@@ -382,49 +396,12 @@ m5.1 = brm(
   control = list(adapt_delta=0.9999, max_treedepth = 15),
   seed = SEED
 )
+summary(m4.2)
+loo4.2 = loo(m4.2)
 
-stanplot(m5.1, type="areas", pars="b_Algorithm")
-post5 = posterior_samples(m5.1)
-post5$diff_algo = inv_logit_scaled(post5$b_AlgorithmLinespots) - inv_logit_scaled(post5$b_AlgorithmBugspots)
-plot(density(post5$diff_algo, adjust = 0.1))
-abline(v = quantile(post5$diff_algo, c(0.025, 0.975))[1])
-abline(v = quantile(post5$diff_algo, c(0.025, 0.975))[2])
-abline(v = median(post5$diff_algo), lty = "dotted")
+loo_compare(loo4.1, loo4.2)
 
-save(m5.1, m5.2, m5.3, file="m5.RData")
+save(m4.1, m4.2, file="m4.RData")
 
-m5.2 = brm(
-  formula = EXAM25 ~ 0 + Algorithm  + Weighting + Time + (1|Project),
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(1,0.05), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  iter = 10000,
-  warmup = 2500,
-  chains = 4,
-  cores = parallel::detectCores(),
-  sample_prior = TRUE,
-  control = list(adapt_delta=0.9999, max_treedepth = 15),
-  seed = SEED
-)
 
-m5.3 = brm(
-  formula = EXAM25 ~ 0 + Algorithm  + Weighting + Time + LOC + (1|Project),
-  data = d,
-  family=Beta(),
-  prior = c(
-    prior(normal(1,0.05), class=b),
-    prior(cauchy(0,0.5), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  iter = 10000,
-  warmup = 2500,
-  chains = 4,
-  cores = parallel::detectCores(),
-  sample_prior = TRUE,
-  control = list(adapt_delta=0.9999, max_treedepth = 15),
-  seed = SEED
-)
+
