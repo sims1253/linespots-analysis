@@ -2,6 +2,10 @@ library(brms)
 library(tidyverse)
 library(bayesplot)
 library(loo)
+library(gridExtra)
+library(ggthemes)
+ggplot2::theme_set(theme_tufte())
+bayesplot::color_scheme_set("darkgray")
 options(mc.cores = parallel::detectCores())
 
 SEED = 140919 # The day I move in with my gf
@@ -76,11 +80,14 @@ d$Origin = (d$Origin - mean(d$Origin)) / sd(d$Origin)
 ls.df = subset(d, d$Algorithm == "Linespots")
 
 # Lets look at some boxplots first
-boxplot(EXAM ~ Weighting, data = ls.df)
+pdf("rq1-box-exam.pdf")
+ggplot(ls.df, aes(x=Weighting, y=EXAM)) + geom_boxplot()
+dev.off()
 # All three weighting functions seem to produce very similar EXAM scores.
 # The flat one seems to have the lowest median slightly.
-
-boxplot(AUCECEXAM ~ Weighting, data = ls.df)
+pdf("rq1-box-aucec.pdf")
+ggplot(ls.df, aes(x=Weighting, y=AUCECEXAM)) + geom_boxplot()
+dev.off()
 # The same picture for the AUCEC scores. The flat weighting function seems
 # to produce the highest ones just slightly.
 
@@ -414,7 +421,7 @@ mcmc_nuts_stepsize(np, lp)
 mcmc_nuts_treedepth(np, lp)
 mcmc_nuts_energy(np, lp)
 
-loo_compare(loo3.1, loo3.2, loo3.3)
+loo_compare(loo3.1, loo3.2)
 # Both models seem to have the same performance in terms of loo.
 # We will look at both initially to see the difference.
 
@@ -423,47 +430,95 @@ fixef(m3.2, summary=TRUE)[1:3,]
 # While the estimated means are similar, the estimated errors differ. m3.2 has more uncertainty.
 # Both however seem to consider the coefficiencts to be very similar.
 
-stanplot(m3.1, type="areas", pars="^b_Weight")
+# We continue with the second model due to similar loo performance and better sampling than m3.1
 stanplot(m3.2, type="areas", pars="^b_Weight")
+pdf("rq1-exam-mcmc-area.pdf")
+title = ggtitle("Posterior distributions",
+                "with medians and 95% intervals")
+mcmc_areas(as.matrix(m3.2),
+           pars = c("b_Weightinglinear_weighting_function", "b_Weightingflat_weighting_function"),
+           prob = 0.95) + title
+dev.off()
 # Visualization of the numbers before.
 
 # We will analyze m3.2 as it has the better sampling behaviour. While it is more uncertain
 # we should accept the uncertainty.
-hypothesis(m3.2, "Weightinglinear_weighting_function=Weightinggoogle_weighting_function")
-plot(hypothesis(m3.2, "Weightinglinear_weighting_function=Weightinggoogle_weighting_function"))
-hypothesis(m3.2, "Weightingflat_weighting_function=Weightinggoogle_weighting_function")
-plot(hypothesis(m3.2, "Weightingflat_weighting_function=Weightinggoogle_weighting_function"))
+hypothesis(m3.2, "Weightinglinear_weighting_function=0")
+pdf("rq1-exam-h1.pdf")
+plot(hypothesis(m3.2, "Weightinglinear_weighting_function=0"))
+dev.off()
+hypothesis(m3.2, "Weightingflat_weighting_function=0")
+pdf("rq1-exam-h2.pdf")
+plot(hypothesis(m3.2, "Weightingflat_weighting_function=0"))
+dev.off()
 hypothesis(m3.2, "Weightingflat_weighting_function=Weightinglinear_weighting_function")
+pdf("rq1-exam-h3.pdf")
 plot(hypothesis(m3.2, "Weightingflat_weighting_function=Weightinglinear_weighting_function"))
+dev.off()
 # Using hypothesis testing, it seems that there is no difference between any of the effects
 # of the weighting functions.
 # We will try to put numbers on it:
-
 post.google = posterior_predict(m3.2, newdata = subset(ls.df, ls.df$Weighting == "google_weighting_function"), seed=SEED)
 post.linear = posterior_predict(m3.2, newdata = subset(ls.df, ls.df$Weighting == "linear_weighting_function"), seed=SEED)
 post.flat = posterior_predict(m3.2, newdata = subset(ls.df, ls.df$Weighting == "flat_weighting_function"), seed=SEED)
 
-diff_gl = post.google - post.linear
-diff_gf = post.google - post.flat
-diff_lf = post.linear - post.flat
 
-plot(density(diff_gl))
-for(i in seq(-4,4,2)){
-  abline(v=mean(diff_gl)+(i * sd(diff_gl)))
-}
-gl.intervals = mean(diff_gl)+(seq(-4,4,2) * sd(diff_gl))
+diff_gl = tibble("Effect" = as.vector(post.google - post.linear))
+gl.intervals = mean(diff_gl$Effect)+(seq(-4,4,2) * sd(diff_gl$Effect))
+gl.intervals
+pdf("rq1-exam-diff-gl.pdf")
+p = ggplot(diff_gl, aes(x=Effect)) +
+  geom_density()
+foo = ggplot_build(p)$data[[1]]
 
-plot(density(diff_gf))
-for(i in seq(-4,4,2)){
-  abline(v=mean(diff_gf)+(i * sd(diff_gf)))
-}
-gf.intervals = mean(diff_gf)+(seq(-4,4,2) * sd(diff_gf))
+p = p +
+  geom_area(data = subset(foo, x >= gl.intervals[2] & x <= gl.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= gl.intervals[1] & x <= gl.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= gl.intervals[4] & x <= gl.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
+  geom_vline(aes(xintercept=median(Effect)), linetype="dashed") +
+  ggtitle("Google - Linear Marginal Effect", "with median, 2 and 4 sd intervals")
+p
+dev.off()
 
-plot(density(diff_lf))
-for(i in seq(-4,4,2)){
-  abline(v=mean(diff_lf)+(i * sd(diff_lf)))
-}
-gf.intervals = mean(diff_lf)+(seq(-4,4,2) * sd(diff_lf))
+
+diff_gf = tibble("Effect" = as.vector(post.google - post.flat))
+gf.intervals = mean(diff_gf$Effect)+(seq(-4,4,2) * sd(diff_gf$Effect))
+gf.intervals
+pdf("rq1-exam-diff-gf.pdf")
+p = ggplot(diff_gf, aes(x=Effect)) +
+  geom_density()
+foo = ggplot_build(p)$data[[1]]
+
+p = p +
+  geom_area(data = subset(foo, x >= gf.intervals[2] & x <= gf.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= gf.intervals[1] & x <= gf.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= gf.intervals[4] & x <= gf.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
+  geom_vline(aes(xintercept=median(Effect)), linetype="dashed") +
+  ggtitle("Google - Flat Marginal Effect", "with median, 2 and 4 sd intervals")
+p
+dev.off()
+
+
+diff_lf = tibble("Effect" = as.vector(post.linear - post.flat))
+lf.intervals = mean(diff_lf$Effect)+(seq(-4,4,2) * sd(diff_lf$Effect))
+lf.intervals
+pdf("rq1-exam-diff-lf.pdf")
+p = ggplot(diff_lf, aes(x=Effect)) +
+  geom_density()
+foo = ggplot_build(p)$data[[1]]
+
+p = p +
+  geom_area(data = subset(foo, x >= lf.intervals[2] & x <= lf.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= lf.intervals[1] & x <= lf.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= lf.intervals[4] & x <= lf.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
+  geom_vline(aes(xintercept=median(Effect)), linetype="dashed") +
+  ggtitle("Linear - Flat Marginal Effect", "with median, 2 and 4 sd intervals")
+p
+dev.off()
+
+pdf("rq1-exam-marginal.pdf")
+marginal_effects(m3.2) # You have to manually press enter before running dev.off()
+dev.off()
 
 # Based on these numbers, we argue that there is no difference in weighting function effect on EXAM
 # score. This might depend on the depth as we only used one depth.
@@ -534,56 +589,104 @@ loo_compare(loo4.1, loo4.2)
 # We will look at both initially to see the difference.
 
 
-fixef(m4.1, summary=TRUE)[1:3,]
-fixef(m4.2, summary=TRUE)[1:3,]
-# While the estimated means are similar, the estimated errors differ. m4.2 has more uncertainty.
-# Both however seem to consider the coefficiencts to be very similar around the mean.
+fixef(m4.1, summary=TRUE)
+fixef(m4.2, summary=TRUE)
+# The coefficients and uncertainties are very similar. The only real difference is the intercept
+# and the CI of the intercept. We continue with m4.2 as it samples a lot better than 4.1
 
-stanplot(m4.1, type="areas", pars="^b_Weight")
 stanplot(m4.2, type="areas", pars="^b_Weight")
-# Visualization of the numbers before. Again very obvious, that both models predict the different
-# weighting functions to have the same effects.
-
+pdf("rq1-aucec-mcmc-area.pdf")
+title = ggtitle("Posterior distributions",
+                "with medians and 95% intervals")
+mcmc_areas(as.matrix(m4.2),
+           pars = c("b_Weightinglinear_weighting_function", "b_Weightingflat_weighting_function"),
+           prob = 0.95) + title
+dev.off()
 # We will analyze m3.2 as it has the better sampling behaviour. While it is more uncertain
 # we should accept the uncertainty.
-hypothesis(m4.2, "Weightinglinear_weighting_function=Weightinggoogle_weighting_function")
-plot(hypothesis(m4.2, "Weightinglinear_weighting_function=Weightinggoogle_weighting_function"))
-hypothesis(m4.2, "Weightingflat_weighting_function=Weightinggoogle_weighting_function")
-plot(hypothesis(m4.2, "Weightingflat_weighting_function=Weightinggoogle_weighting_function"))
+
+# We will analyze m4.2 as it has the better sampling behaviour. While it is more uncertain
+# we should accept the uncertainty.
+hypothesis(m4.2, "Weightinglinear_weighting_function=0")
+pdf("rq1-aucec-h1.pdf")
+plot(hypothesis(m4.2, "Weightinglinear_weighting_function=0"))
+dev.off()
+hypothesis(m4.2, "Weightingflat_weighting_function=0")
+pdf("rq1-aucec-h2.pdf")
+plot(hypothesis(m4.2, "Weightingflat_weighting_function=0"))
+dev.off()
 hypothesis(m4.2, "Weightingflat_weighting_function=Weightinglinear_weighting_function")
+pdf("rq1-aucec-h3.pdf")
 plot(hypothesis(m4.2, "Weightingflat_weighting_function=Weightinglinear_weighting_function"))
+dev.off()
 # Using hypothesis testing, it seems that there is no difference between any of the effects
 # of the weighting functions.
 # We will try to put numbers on it:
-
 post.google = posterior_predict(m4.2, newdata = subset(ls.df, ls.df$Weighting == "google_weighting_function"), seed=SEED)
-post.linear = posterior_predict(m4.2, newdata = subset(ls.df, ls.df$Weighting == "linear_weighting_function"), seed=SEED)
 post.flat = posterior_predict(m4.2, newdata = subset(ls.df, ls.df$Weighting == "flat_weighting_function"), seed=SEED)
+post.linear = posterior_predict(m4.2, newdata = subset(ls.df, ls.df$Weighting == "linear_weighting_function"), seed=SEED)
 
-diff_gl = post.google - post.linear
-diff_gf = post.google - post.flat
-diff_lf = post.linear - post.flat
 
-plot(density(diff_gl))
-for(i in seq(-4,4,2)){
-  abline(v=mean(diff_gl)+(i * sd(diff_gl)))
-}
-gl.intervals = mean(diff_gl)+(seq(-4,4,2) * sd(diff_gl))
+diff_gl = tibble("Effect" = as.vector(post.google - post.linear))
+gl.intervals = mean(diff_gl$Effect)+(seq(-4,4,2) * sd(diff_gl$Effect))
+gl.intervals
+pdf("rq1-aucec-diff-gl.pdf")
+p = ggplot(diff_gl, aes(x=Effect)) +
+  geom_density()
+foo = ggplot_build(p)$data[[1]]
 
-plot(density(diff_gf))
-for(i in seq(-4,4,2)){
-  abline(v=mean(diff_gf)+(i * sd(diff_gf)))
-}
-gf.intervals = mean(diff_gf)+(seq(-4,4,2) * sd(diff_gf))
+p = p +
+  geom_area(data = subset(foo, x >= gl.intervals[2] & x <= gl.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= gl.intervals[1] & x <= gl.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= gl.intervals[4] & x <= gl.intervals[5]), aes(x=x, y=y), fill="lightgrey") +
+  geom_vline(aes(xintercept=median(Effect)), linetype="dashed") +
+  ggtitle("Google - Linear Marginal Effect", "with median, 2 and 4 sd intervals")
+p
+dev.off()
 
-plot(density(diff_lf))
-for(i in seq(-4,4,2)){
-  abline(v=mean(diff_lf)+(i * sd(diff_lf)))
-}
-gf.intervals = mean(diff_lf)+(seq(-4,4,2) * sd(diff_lf))
 
-# Based on these numbers, we argue that there is no difference in weighting function effect on EXAM
+diff_gf = tibble("Effect" = as.vector(post.google - post.flat))
+gf.intervals = mean(diff_gf$Effect)+(seq(-4,4,2) * sd(diff_gf$Effect))
+gf.intervals
+pdf("rq1-aucec-diff-gf.pdf")
+p = ggplot(diff_gf, aes(x=Effect)) +
+  geom_density()
+foo = ggplot_build(p)$data[[1]]
+
+p = p +
+  geom_area(data = subset(foo, x >= gf.intervals[2] & x <= gf.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= gf.intervals[1] & x <= gf.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= gf.intervals[4] & x <= gf.intervals[5]), aes(x=x, y=y), fill="lightgrey") +
+  geom_vline(aes(xintercept=median(Effect)), linetype="dashed") +
+  ggtitle("Google - Flat Marginal Effect", "with median, 2 and 4 sd intervals")
+p
+dev.off()
+
+
+diff_lf = tibble("Effect" = as.vector(post.linear - post.flat))
+lf.intervals = mean(diff_lf$Effect)+(seq(-4,4,2) * sd(diff_lf$Effect))
+lf.intervals
+pdf("rq1-aucec-diff-lf.pdf")
+p = ggplot(diff_lf, aes(x=Effect)) +
+  geom_density()
+foo = ggplot_build(p)$data[[1]]
+
+p = p +
+  geom_area(data = subset(foo, x >= lf.intervals[2] & x <= lf.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= lf.intervals[1] & x <= lf.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= lf.intervals[4] & x <= lf.intervals[5]), aes(x=x, y=y), fill="lightgrey") +
+  geom_vline(aes(xintercept=median(Effect)), linetype="dashed") +
+  ggtitle("Linear - Flat Marginal Effect", "with median, 2 and 4 sd intervals")
+p
+dev.off()
+
+pdf("rq1-aucec-marginal.pdf")
+marginal_effects(m4.2) # You have to manually press enter before running dev.off()
+dev.off()
+
+# Based on these numbers, we argue that there is no difference in weighting function effect on aucec
 # score. This might depend on the depth as we only used one depth.
 
-
 save(m4.1, m4.2, file="m4.RData")
+
+
