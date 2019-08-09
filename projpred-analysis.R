@@ -134,10 +134,13 @@ exam = matrix(as.numeric(unlist(exam)),nrow=nrow(exam))
 exam25 = tibble(d$EXAM25)
 exam25 = matrix(as.numeric(unlist(exam25)),nrow=nrow(exam25))
 
+EInspect25EXAM = tibble(d$EInspect25EXAM)
+EInspect25EXAM = matrix(as.numeric(unlist(EInspect25EXAM)),nrow=nrow(EInspect25EXAM))
+
 aucec = tibble(d$AUCECEXAM)
 aucec = matrix(as.numeric(unlist(aucec)),nrow=nrow(aucec))
 
-bs.data = tibble(predictors, exam, aucec, exam25)
+bs.data = tibble(predictors, exam, aucec, exam25, EInspect25EXAM)
 
 n = nrow(bs.data) # Rows in the d frame
 D = ncol(predictors) # Predictors in the model
@@ -191,4 +194,19 @@ varsel_plot(cvs5, stats = c('elpd', 'rmse'), deltas=T)
 mcmc_areas(as.matrix(projpred5), pars = c('(Intercept)', names(cvs5$vind[1:suggest_size(cvs5)]), 'sigma'))
 
 
-save(projpred1, projpred2, projpred3, projpred4, projpred5, file="projpred.RData")
+projpred6 = stan_glm(EInspect25EXAM ~ predictors,
+                     family = gaussian(), data = bs.data, prior = prior_coeff,
+                     chains = 4, iter = 2000, seed = SEED)
+summary(projpred6) # Rhat and n_eff look good
+
+cvs6 = cv_varsel(projpred6, method = 'forward')
+cvs6$vind
+suggest_size(cvs6)
+varsel_plot(cvs6, stats = c('elpd', 'rmse'), deltas=T)
+# While suggest_size suggests 9 predictors, varsel_plot makes it seem like 4 or 5 might be a good point instead.
+# That would give LOC, Algorithm, Project, Language and maybe Domain as predictors.
+
+mcmc_areas(as.matrix(projpred6), pars = c('(Intercept)', names(cvs5$vind[1:suggest_size(cvs6)]), 'sigma'))
+
+
+save(projpred1, projpred2, projpred3, projpred4, projpred5, projpred6, file="projpred.RData")
