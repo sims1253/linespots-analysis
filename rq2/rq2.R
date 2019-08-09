@@ -2,6 +2,12 @@ library(brms)
 library(tidyverse)
 library(bayesplot)
 library(loo)
+library(gridExtra)
+library(ggthemes)
+ggplot2::theme_set(theme_tufte())
+bayesplot::color_scheme_set("darkgray")
+options(mc.cores = parallel::detectCores())
+
 options(mc.cores = parallel::detectCores())
 
 SEED = 140919 # The day I move in with my gf
@@ -76,13 +82,13 @@ d$Origin = (d$Origin - mean(d$Origin)) / sd(d$Origin)
 ls.df = subset(d, d$Algorithm == "Linespots")
 
 # Lets look at some boxplots first
-boxplot(EXAM ~ Time, data = ls.df)
+pdf("rq2-box-exam.pdf")
+ggplot(ls.df, aes(x=Time, y=EXAM)) + geom_boxplot()
+dev.off()
 
-
-boxplot(AUCECEXAM ~ Time, data = ls.df)
-
-
-boxplot(EXAM25 ~ Time, data = ls.df)
+pdf("rq2-box-aucec.pdf")
+ggplot(ls.df, aes(x=Time, y=AUCECEXAM)) + geom_boxplot()
+dev.off()
 
 
 # We start with the EXAM metric as output.
@@ -395,6 +401,59 @@ plot(m3.2)
 loo3.2 = loo(m3.2)
 loo_compare(loo3.1, loo3.2)
 
+
+fixef(m3.1, summary=TRUE)
+fixef(m3.2, summary=TRUE)
+# While the estimated means are similar, the estimated errors differ. m3.2 has more uncertainty.
+# Both however seem to consider the coefficiencts to be very similar.
+
+# We continue with the second model due to similar loo performance and better sampling than m3.1
+stanplot(m3.2, type="areas", pars="^b_Time")
+pdf("rq2-exam-mcmc-area.pdf")
+title = ggtitle("Posterior distribution",
+                "with medians and 95% intervals")
+mcmc_areas(as.matrix(m3.2),
+           pars = c("b_Timecommit"),
+           prob = 0.95) + title
+dev.off()
+# Visualization of the numbers before.
+
+# We will analyze m3.2 as it has the better sampling behaviour. While it is more uncertain
+# we should accept the uncertainty.
+hypothesis(m3.2, "Timecommit=0")
+pdf("rq2-exam-h1.pdf")
+plot(hypothesis(m3.2, "Timecommit=0"))
+dev.off()
+# Using hypothesis testing, it seems that there is no difference between any of the effects
+# of the weighting functions.
+# We will try to put numbers on it:
+post.time = posterior_predict(m3.2, newdata = subset(ls.df, ls.df$Time == "time"), seed=SEED)
+post.commit = posterior_predict(m3.2, newdata = subset(ls.df, ls.df$Time == "commit"), seed=SEED)
+diff_tc = tibble("Effect" = as.vector(post.time - post.commit))
+tc.intervals = mean(diff_tc$Effect)+(seq(-4,4,2) * sd(diff_tc$Effect))
+tc.intervals
+pdf("rq2-exam-diff-tc.pdf")
+p = ggplot(diff_tc, aes(x=Effect)) +
+  geom_density(color="grey22")
+foo = ggplot_build(p)$data[[1]]
+
+p = p +
+  geom_area(data = subset(foo, x >= tc.intervals[2] & x <= tc.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= tc.intervals[1] & x <= tc.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= tc.intervals[4] & x <= tc.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
+  geom_vline(aes(xintercept=median(Effect)), linetype="solid", color="grey32") +
+  ggtitle("Time - Commit Marginal Effect on EXAM", "with median, 2 and 4 sd intervals")
+p
+dev.off()
+
+
+pdf("rq2-exam-marginal.pdf")
+marginal_effects(m3.2) # You have to manually press enter before running dev.off()
+dev.off()
+
+# Based on these numbers, we argue that there is no difference in weighting function effect on EXAM
+# score. This might depend on the depth as we only used one depth.
+
 save(m3.1, m3.2, file="m3.RData")
 ############################################################
 # And do the same for the AUCEC
@@ -443,6 +502,56 @@ summary(m4.2)
 loo4.2 = loo(m4.2)
 
 loo_compare(loo4.1, loo4.2)
+
+
+fixef(m4.1, summary=TRUE)
+fixef(m4.2, summary=TRUE)
+# While the estimated means are similar, the estimated errors differ. m4.2 has more uncertainty.
+# Both however seem to consider the coefficiencts to be very similar.
+
+# We continue with the second model due to similar loo performance and better sampling than m4.1
+stanplot(m4.2, type="areas", pars="^b_Time") 
+pdf("rq2-aucec-mcmc-area.pdf")
+title = ggtitle("Posterior distribution",
+                "with medians and 95% intervals")
+mcmc_areas(as.matrix(m4.2),
+           pars = c("b_Timecommit"),
+           prob = 0.95) + title
+dev.off()
+# Visualization of the numbers before.
+
+# We will analyze m4.2 as it has the better sampling behaviour. While it is more uncertain
+# we should accept the uncertainty.
+hypothesis(m4.2, "Timecommit=0")
+pdf("rq2-aucec-h1.pdf")
+plot(hypothesis(m4.2, "Timecommit=0"))
+dev.off()
+# Using hypothesis testing, it seems that there is no difference between any of the effects
+# of the weighting functions.
+# We will try to put numbers on it:
+post.time = posterior_predict(m4.2, newdata = subset(ls.df, ls.df$Time == "time"), seed=SEED)
+post.commit = posterior_predict(m4.2, newdata = subset(ls.df, ls.df$Time == "commit"), seed=SEED)
+diff_tc = tibble("Effect" = as.vector(post.time - post.commit))
+tc.intervals = mean(diff_tc$Effect)+(seq(-4,4,2) * sd(diff_tc$Effect))
+tc.intervals
+pdf("rq2-aucec-diff-tc.pdf")
+p = ggplot(diff_tc, aes(x=Effect)) +
+  geom_density(color="grey22")
+foo = ggplot_build(p)$data[[1]]
+
+p = p +
+  geom_area(data = subset(foo, x >= tc.intervals[2] & x <= tc.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= tc.intervals[1] & x <= tc.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= tc.intervals[4] & x <= tc.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
+  geom_vline(aes(xintercept=median(Effect)), linetype="solid", color="grey32") +
+  ggtitle("Time - Commit Marginal Effect on AUCECEXAM", "with median, 2 and 4 sd intervals")
+p
+dev.off()
+
+
+pdf("rq2-aucec-marginal.pdf")
+marginal_effects(m4.2) # You have to manually press enter before running dev.off()
+dev.off()
 
 save(m4.1, m4.2, file="m4.RData")
 

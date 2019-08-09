@@ -468,15 +468,15 @@ gl.intervals = mean(diff_gl$Effect)+(seq(-4,4,2) * sd(diff_gl$Effect))
 gl.intervals
 pdf("rq1-exam-diff-gl.pdf")
 p = ggplot(diff_gl, aes(x=Effect)) +
-  geom_density()
+  geom_density(color="grey22")
 foo = ggplot_build(p)$data[[1]]
 
 p = p +
   geom_area(data = subset(foo, x >= gl.intervals[2] & x <= gl.intervals[4]), aes(x=x, y=y), fill="grey") +
   geom_area(data = subset(foo, x >= gl.intervals[1] & x <= gl.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
   geom_area(data = subset(foo, x >= gl.intervals[4] & x <= gl.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
-  geom_vline(aes(xintercept=median(Effect)), linetype="dashed") +
-  ggtitle("Google - Linear Marginal Effect", "with median, 2 and 4 sd intervals")
+  geom_vline(aes(xintercept=median(Effect)), linetype="solid", color="grey32") +
+  ggtitle("Google - Linear Marginal Effect on EXAM", "with median, 2 and 4 sd intervals")
 p
 dev.off()
 
@@ -486,15 +486,15 @@ gf.intervals = mean(diff_gf$Effect)+(seq(-4,4,2) * sd(diff_gf$Effect))
 gf.intervals
 pdf("rq1-exam-diff-gf.pdf")
 p = ggplot(diff_gf, aes(x=Effect)) +
-  geom_density()
+  geom_density(color="grey22")
 foo = ggplot_build(p)$data[[1]]
 
 p = p +
   geom_area(data = subset(foo, x >= gf.intervals[2] & x <= gf.intervals[4]), aes(x=x, y=y), fill="grey") +
   geom_area(data = subset(foo, x >= gf.intervals[1] & x <= gf.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
   geom_area(data = subset(foo, x >= gf.intervals[4] & x <= gf.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
-  geom_vline(aes(xintercept=median(Effect)), linetype="dashed") +
-  ggtitle("Google - Flat Marginal Effect", "with median, 2 and 4 sd intervals")
+  geom_vline(aes(xintercept=median(Effect)), linetype="solid", color="grey32") +
+  ggtitle("Google - Flat Marginal Effect on EXAM", "with median, 2 and 4 sd intervals")
 p
 dev.off()
 
@@ -504,15 +504,15 @@ lf.intervals = mean(diff_lf$Effect)+(seq(-4,4,2) * sd(diff_lf$Effect))
 lf.intervals
 pdf("rq1-exam-diff-lf.pdf")
 p = ggplot(diff_lf, aes(x=Effect)) +
-  geom_density()
+  geom_density(color="grey22")
 foo = ggplot_build(p)$data[[1]]
 
 p = p +
   geom_area(data = subset(foo, x >= lf.intervals[2] & x <= lf.intervals[4]), aes(x=x, y=y), fill="grey") +
   geom_area(data = subset(foo, x >= lf.intervals[1] & x <= lf.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
   geom_area(data = subset(foo, x >= lf.intervals[4] & x <= lf.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
-  geom_vline(aes(xintercept=median(Effect)), linetype="dashed") +
-  ggtitle("Linear - Flat Marginal Effect", "with median, 2 and 4 sd intervals")
+  geom_vline(aes(xintercept=median(Effect)), linetype="solid", color="grey32") +
+  ggtitle("Linear - Flat Marginal Effect on EXAM", "with median, 2 and 4 sd intervals")
 p
 dev.off()
 
@@ -632,15 +632,15 @@ gl.intervals = mean(diff_gl$Effect)+(seq(-4,4,2) * sd(diff_gl$Effect))
 gl.intervals
 pdf("rq1-aucec-diff-gl.pdf")
 p = ggplot(diff_gl, aes(x=Effect)) +
-  geom_density()
+  geom_density(color="grey22")
 foo = ggplot_build(p)$data[[1]]
 
 p = p +
   geom_area(data = subset(foo, x >= gl.intervals[2] & x <= gl.intervals[4]), aes(x=x, y=y), fill="grey") +
   geom_area(data = subset(foo, x >= gl.intervals[1] & x <= gl.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
   geom_area(data = subset(foo, x >= gl.intervals[4] & x <= gl.intervals[5]), aes(x=x, y=y), fill="lightgrey") +
-  geom_vline(aes(xintercept=median(Effect)), linetype="dashed") +
-  ggtitle("Google - Linear Marginal Effect", "with median, 2 and 4 sd intervals")
+  geom_vline(aes(xintercept=median(Effect)), linetype="solid", color="grey32") +
+  ggtitle("Google - Linear Marginal Effect on AUCECEXAM", "with median, 2 and 4 sd intervals")
 p
 dev.off()
 
@@ -650,15 +650,15 @@ gf.intervals = mean(diff_gf$Effect)+(seq(-4,4,2) * sd(diff_gf$Effect))
 gf.intervals
 pdf("rq1-aucec-diff-gf.pdf")
 p = ggplot(diff_gf, aes(x=Effect)) +
-  geom_density()
+  geom_density(color="grey22")
 foo = ggplot_build(p)$data[[1]]
 
 p = p +
   geom_area(data = subset(foo, x >= gf.intervals[2] & x <= gf.intervals[4]), aes(x=x, y=y), fill="grey") +
   geom_area(data = subset(foo, x >= gf.intervals[1] & x <= gf.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
   geom_area(data = subset(foo, x >= gf.intervals[4] & x <= gf.intervals[5]), aes(x=x, y=y), fill="lightgrey") +
-  geom_vline(aes(xintercept=median(Effect)), linetype="dashed") +
-  ggtitle("Google - Flat Marginal Effect", "with median, 2 and 4 sd intervals")
+  geom_vline(aes(xintercept=median(Effect)), linetype="solid", color="grey32") +
+  ggtitle("Google - Flat Marginal Effect on AUCECEXAM", "with median, 2 and 4 sd intervals")
 p
 dev.off()
 
@@ -668,15 +668,15 @@ lf.intervals = mean(diff_lf$Effect)+(seq(-4,4,2) * sd(diff_lf$Effect))
 lf.intervals
 pdf("rq1-aucec-diff-lf.pdf")
 p = ggplot(diff_lf, aes(x=Effect)) +
-  geom_density()
+  geom_density(color="grey22")
 foo = ggplot_build(p)$data[[1]]
 
 p = p +
   geom_area(data = subset(foo, x >= lf.intervals[2] & x <= lf.intervals[4]), aes(x=x, y=y), fill="grey") +
   geom_area(data = subset(foo, x >= lf.intervals[1] & x <= lf.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
   geom_area(data = subset(foo, x >= lf.intervals[4] & x <= lf.intervals[5]), aes(x=x, y=y), fill="lightgrey") +
-  geom_vline(aes(xintercept=median(Effect)), linetype="dashed") +
-  ggtitle("Linear - Flat Marginal Effect", "with median, 2 and 4 sd intervals")
+  geom_vline(aes(xintercept=median(Effect)), linetype="solid", color="grey32") +
+  ggtitle("Linear - Flat Marginal Effect on AUCECEXAM", "with median, 2 and 4 sd intervals")
 p
 dev.off()
 
