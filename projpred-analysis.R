@@ -6,8 +6,8 @@ options(mc.cores = parallel::detectCores())
 
 SEED = 140919 # I asked my girlfriend for a number
 
-#setwd("~/Documents/dev/linespots/linespots-analysis/")
-#load(file="projpred.RData")
+setwd("~/Documents/dev/linespots/linespots-analysis")
+load(file="projpred.RData")
 
 d = read_delim('data.csv',
                delim = ",",
@@ -190,23 +190,26 @@ suggest_size(cvs5)
 varsel_plot(cvs5, stats = c('elpd', 'rmse'), deltas=T)
 # While suggest_size suggests 9 predictors, varsel_plot makes it seem like 4 or 5 might be a good point instead.
 # That would give LOC, Algorithm, Project, Language and maybe Domain as predictors.
+# The mcmc_area plot also shows Origin and commit to have noticable effects.
 
 mcmc_areas(as.matrix(projpred5), pars = c('(Intercept)', names(cvs5$vind[1:suggest_size(cvs5)]), 'sigma'))
 
 
 projpred6 = stan_glm(EInspect25EXAM ~ predictors,
                      family = gaussian(), data = bs.data, prior = prior_coeff,
-                     chains = 4, iter = 2000, seed = SEED)
-summary(projpred6) # Rhat and n_eff look good
+                     chains = 4, iter = 2000, seed = SEED, adapt_delta=0.99999)
+summary(projpred6) # Rhat and n_eff
 
 cvs6 = cv_varsel(projpred6, method = 'forward')
 cvs6$vind
 suggest_size(cvs6)
 varsel_plot(cvs6, stats = c('elpd', 'rmse'), deltas=T)
-# While suggest_size suggests 9 predictors, varsel_plot makes it seem like 4 or 5 might be a good point instead.
-# That would give LOC, Algorithm, Project, Language and maybe Domain as predictors.
+# While suggest_size suggests 9 predictors, varsel_plot makes it seem like 5 or 6 might be a good point instead.
+# That would give Algorithm, Domain, Language, Project, LOC, Weighting as predictors.
+# The mcmc_areas also makes Origin and commit seem usefull though.
 
-mcmc_areas(as.matrix(projpred6), pars = c('(Intercept)', names(cvs5$vind[1:suggest_size(cvs6)]), 'sigma'))
+mcmc_areas(as.matrix(projpred6), pars = c('(Intercept)', names(cvs6$vind[1:suggest_size(cvs6)]), 'sigma'))
+mcmc_areas(as.matrix(projpred6), pars = c(names(cvs6$vind[1:suggest_size(cvs6)])))
 
 
 save(projpred1, projpred2, projpred3, projpred4, projpred5, projpred6, file="projpred.RData")

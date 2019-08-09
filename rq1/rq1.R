@@ -15,6 +15,8 @@ load(file="m1.RData")
 load(file="m2.RData")
 load(file="m3.RData")
 load(file="m4.RData")
+load(file="m5.RData")
+load(file="m6.RData")
 
 d = read_delim('../data.csv',
                delim = ",",
@@ -385,8 +387,41 @@ m3.1 = brm(
 )
 
 loo3.1 = loo(m3.1)
-plot(m3.1)
 summary(m3.1)
+
+pdf("rq1-exam-m1-neff.pdf")
+mcmc_neff(neff_ratio(m3.1))
+dev.off()
+
+pdf("rq1-exam-m1-rhat.pdf")
+mcmc_rhat(rhat(m3.1))
+dev.off()
+
+pdf("rq1-exam-m1-trace.pdf")
+mcmc_trace(m3.1)
+dev.off()
+
+np <- nuts_params(m3.1)
+lp <- log_posterior(m3.1)
+pdf("rq1-exam-m1-acc.pdf")
+mcmc_nuts_acceptance(np, lp)
+dev.off()
+
+pdf("rq1-exam-m1-div.pdf")
+mcmc_nuts_divergence(np, lp)
+dev.off()
+
+pdf("rq1-exam-m1-step.pdf")
+mcmc_nuts_stepsize(np, lp)
+dev.off()
+
+pdf("rq1-exam-m1-tree.pdf")
+mcmc_nuts_treedepth(np, lp)
+dev.off()
+
+pdf("rq1-exam-m1-energy.pdf")
+mcmc_nuts_energy(np, lp)
+dev.off()
 # The intercept doesn't sample well. We try the least complex model that has over 10% n_eff
 # for all coefficients.
 
@@ -410,16 +445,43 @@ m3.2 = brm(
 )
 loo3.3 = loo(m3.3)
 loo3.2 = loo(m3.2)
-plot(m3.2)
+
 summary(m3.2)
 # Samples a lot better than m3.1 and all diagnostics look fine.
+
+pdf("rq1-exam-m2-neff.pdf")
+mcmc_neff(neff_ratio(m3.2))
+dev.off()
+
+pdf("rq1-exam-m2-rhat.pdf")
+mcmc_rhat(rhat(m3.2))
+dev.off()
+
+pdf("rq1-exam-m2-trace.pdf")
+mcmc_trace(m3.2)
+dev.off()
+
 np <- nuts_params(m3.2)
 lp <- log_posterior(m3.2)
+pdf("rq1-exam-m2-acc.pdf")
 mcmc_nuts_acceptance(np, lp)
+dev.off()
+
+pdf("rq1-exam-m2-div.pdf")
 mcmc_nuts_divergence(np, lp)
+dev.off()
+
+pdf("rq1-exam-m2-step.pdf")
 mcmc_nuts_stepsize(np, lp)
+dev.off()
+
+pdf("rq1-exam-m2-tree.pdf")
 mcmc_nuts_treedepth(np, lp)
+dev.off()
+
+pdf("rq1-exam-m2-energy.pdf")
 mcmc_nuts_energy(np, lp)
+dev.off()
 
 loo_compare(loo3.1, loo3.2)
 # Both models seem to have the same performance in terms of loo.
@@ -549,10 +611,44 @@ m4.1 = brm(
   seed = SEED
 )
 loo4.1 = loo(m4.1)
-plot(m4.1)
 summary(m4.1)
 # Seems like m4.1 has problems sampling with low n_eff. We try the least complex model that has over 10% n_eff
 # for all coefficients.
+
+pdf("rq1-aucec-m1-neff.pdf")
+mcmc_neff(neff_ratio(m4.1))
+dev.off()
+
+pdf("rq1-aucec-m1-rhat.pdf")
+mcmc_rhat(rhat(m4.1))
+dev.off()
+
+pdf("rq1-aucec-m1-trace.pdf")
+mcmc_trace(m4.1)
+dev.off()
+
+np <- nuts_params(m4.1)
+lp <- log_posterior(m4.1)
+pdf("rq1-aucec-m1-acc.pdf")
+mcmc_nuts_acceptance(np, lp)
+dev.off()
+
+pdf("rq1-aucec-m1-div.pdf")
+mcmc_nuts_divergence(np, lp)
+dev.off()
+
+pdf("rq1-aucec-m1-step.pdf")
+mcmc_nuts_stepsize(np, lp)
+dev.off()
+
+pdf("rq1-aucec-m1-tree.pdf")
+mcmc_nuts_treedepth(np, lp)
+dev.off()
+
+pdf("rq1-aucec-m1-energy.pdf")
+mcmc_nuts_energy(np, lp)
+dev.off()
+
 
 m4.2 = brm(
   formula = AUCECEXAM ~ 1 + Weighting + LOC + (1|Project) + (1|Language),
@@ -573,16 +669,42 @@ m4.2 = brm(
   seed = SEED
 )
 loo4.2 = loo(m4.2)
-plot(m4.2)
 summary(m4.2)
 # Samples a lot better than m3.1 and all diagnostics look fine.
+
+pdf("rq1-aucec-m2-neff.pdf")
+mcmc_neff(neff_ratio(m4.2))
+dev.off()
+
+pdf("rq1-aucec-m2-rhat.pdf")
+mcmc_rhat(rhat(m4.2))
+dev.off()
+
+pdf("rq1-aucec-m2-trace.pdf")
+mcmc_trace(m4.2)
+dev.off()
+
 np <- nuts_params(m4.2)
 lp <- log_posterior(m4.2)
+pdf("rq1-aucec-m2-acc.pdf")
 mcmc_nuts_acceptance(np, lp)
+dev.off()
+
+pdf("rq1-aucec-m2-div.pdf")
 mcmc_nuts_divergence(np, lp)
+dev.off()
+
+pdf("rq1-aucec-m2-step.pdf")
 mcmc_nuts_stepsize(np, lp)
+dev.off()
+
+pdf("rq1-aucec-m2-tree.pdf")
 mcmc_nuts_treedepth(np, lp)
+dev.off()
+
+pdf("rq1-aucec-m2-energy.pdf")
 mcmc_nuts_energy(np, lp)
+dev.off()
 
 loo_compare(loo4.1, loo4.2)
 # Both models seem to have the same performance in terms of loo.
@@ -690,3 +812,142 @@ dev.off()
 save(m4.1, m4.2, file="m4.RData")
 
 
+
+##################################################################################
+
+# Small trial for Exam25
+# That would give LOC, Algorithm, Project, Language and maybe Domain as predictors.
+# The mcmc_area plot also shows Origin and commit to have noticable effects.
+
+m5.1 = brm(
+  formula = EXAM25 ~ 1 + Weighting + LOC + (1|Project),
+  data = ls.df,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  iter = 10000,
+  warmup = 2500,
+  chains = 4,
+  cores = parallel::detectCores(),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.999),
+  seed = SEED
+)
+loo5.1 = loo(m5.1)
+
+m5.2 = brm(
+  formula = EXAM25 ~ 1 + Weighting + LOC + (1|Project) + (1|Language),
+  data = ls.df,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  iter = 10000,
+  warmup = 2500,
+  chains = 4,
+  cores = parallel::detectCores(),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.999),
+  seed = SEED
+)
+loo5.2 = loo(m5.2)
+
+m5.3 = brm(
+  formula = EXAM25 ~ 1 + Weighting + LOC + (1|Project) + (1|Language) + (1|Domain) + Origin + Commit,
+  data = ls.df,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  iter = 10000,
+  warmup = 2500,
+  chains = 4,
+  cores = parallel::detectCores(),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.999),
+  seed = SEED
+)
+loo5.3 = loo(m5.3)
+
+loo_compare(loo5.1, loo5.2, loo5.3)
+save(m5.1, m5.2, m5.3, file="m5.RData")
+
+
+##################################################################################
+
+# Small trial for EInstect25EXAM
+# That would give Algorithm, Domain, Language, Project, LOC, Weighting as predictors.
+# The mcmc_areas also makes Origin and commit seem usefull though.
+
+m6.1 = brm(
+  formula = EInstect25EXAM ~ 1 + Weighting + LOC + (1|Project),
+  data = ls.df,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  iter = 10000,
+  warmup = 2500,
+  chains = 4,
+  cores = parallel::detectCores(),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.999),
+  seed = SEED
+)
+loo6.1 = loo(m6.1)
+
+m6.2 = brm(
+  formula = EInstect25EXAM ~ 1 + Weighting + (1|Domain) + (1|Project) + (1|Language) + LOC,
+  data = ls.df,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  iter = 10000,
+  warmup = 2500,
+  chains = 4,
+  cores = parallel::detectCores(),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.999),
+  seed = SEED
+)
+loo6.2 = loo(m6.2)
+
+m6.3 = brm(
+  formula = EInstect25EXAM ~ 1 + Weighting + LOC + (1|Project) + (1|Language) + (1|Domain) + Origin + Commit,
+  data = ls.df,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  iter = 10000,
+  warmup = 2500,
+  chains = 4,
+  cores = parallel::detectCores(),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.999),
+  seed = SEED
+)
+loo6.3 = loo(m6.3)
+
+loo_compare(loo6.1, loo6.2, loo6.3)
+save(m6.1, m6.2, m6.3, file="m6.RData")
