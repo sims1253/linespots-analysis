@@ -8,8 +8,6 @@ ggplot2::theme_set(theme_tufte())
 bayesplot::color_scheme_set("darkgray")
 options(mc.cores = parallel::detectCores())
 
-options(mc.cores = parallel::detectCores())
-
 SEED = 140919 # The day I move in with my gf
 
 setwd("~/Documents/dev/linespots/linespots-analysis/rq2")

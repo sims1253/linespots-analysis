@@ -32,4 +32,4 @@ sensitivity1(0.1, 0.1, 0.1) # This is way too small.
 dev.off()
 sensitivity1(1, 0.5, 1) # Seems sensible for both w
 dev.off()
-sensitivity1(0.5, 0.5, 0.1) # This seems to work as well which means we can use the same prior for all models.
+sensitivity1(1, 0.5, 0.1) # This seems to work as well which means we can use the same prior for all models.
