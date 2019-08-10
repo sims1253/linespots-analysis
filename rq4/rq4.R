@@ -667,6 +667,10 @@ save(m4.1, m4.2, file="m4.RData")
 # That would give LOC, Algorithm, Project, Language and maybe Domain as predictors.
 # The mcmc_area plot also shows Origin and commit to have noticable effects.
 
+pdf("rq4-box-exam25.pdf")
+ggplot(d, aes(x=Algorithm, y=EXAM25)) + geom_boxplot()
+dev.off()
+
 m5.1 = brm(
   formula = EXAM25 ~ 1 + Algorithm + LOC + (1|Project),
   data = d,
@@ -736,6 +740,10 @@ save(m5.1, m5.2, m5.3, file="m5.RData")
 # Small trial for EInstect25EXAM
 # That would give Algorithm, Domain, Language, Project, LOC, Weighting as predictors.
 # The mcmc_areas also makes Origin and commit seem usefull though.
+
+pdf("rq4-box-EI25.pdf")
+ggplot(d, aes(x=Algorithm, y=EInspect25EXAM)) + geom_boxplot()
+dev.off()
 
 m6.1 = brm(
   formula = EInspect25EXAM ~ 1 + Algorithm + LOC + (1|Project),
