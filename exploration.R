@@ -1,6 +1,9 @@
 library(tidyverse)
+library(ggthemes)
+library(gridExtra)
+ggplot2::theme_set(theme_tufte())
 
-#setwd("~/Documents/dev/linespots/linespots-analysis/")
+setwd("~/Documents/dev/linespots/linespots-analysis")
 
 d = read_delim('data.csv',
                delim = ",",
@@ -51,43 +54,116 @@ d = read_delim('data.csv',
                  tp = col_double()
                )
 )
-
-# Standardizing
-d$Commits = (d$Commits - mean(d$Commits)) / sd(d$Commits)
-d$LOC = (d$LOC - mean(d$LOC)) / sd(d$LOC)
-d$Origin = (d$Origin - mean(d$Origin)) / sd(d$Origin)
-
-plot(density(d$AUCECEXAM))
-plot(density(d$EXAM))
 d = subset(d, d$FixCount != 0)
-plot(density(d$AUCECEXAM))
-plot(density(d$EXAM))
-# There are results from one run, where no fix was found in the pseudo future.
-# There is no value in that data so we remove it.
-# Afterwards both EXAM and AUCEC look kind of normal
-plot(density(d$EXAM25))
 
+exam.intervals = mean(d$EXAM) + (seq(-4, 4, 2) * sd(d$EXAM))
+exam.intervals
+pdf("exp-exam.pdf")
+p = ggplot(d, aes(x = EXAM)) +
+  geom_density(color = "grey22")
+foo = ggplot_build(p)$data[[1]]
+p = p +
+  geom_area(
+    data = subset(foo, x >= exam.intervals[2] & x <= exam.intervals[4]), aes(x = x, y = y), fill = "grey") +
+  geom_vline(aes(xintercept = median(EXAM)), linetype = "solid", color = "grey32") +
+  ggtitle("Density of EXAM", "with median, 2 sd interval")
+p
+dev.off()
 
-# Create data frames for only the Linespots and Bugspots data.
-ls.df = subset(d, d$Algorithm == "Linespots")
-bs.df = subset(d, d$Algorithm == "Bugspots")
+aucecexam.intervals = mean(d$AUCECEXAM) + (seq(-4, 4, 2) * sd(d$AUCECEXAM))
+aucecexam.intervals
+pdf("exp-aucecexam.pdf")
+p = ggplot(d, aes(x = AUCECEXAM)) +
+  geom_density(color = "grey22")
+foo = ggplot_build(p)$data[[1]]
+p = p +
+  geom_area(
+    data = subset(foo, x >= aucecexam.intervals[2] & x <= aucecexam.intervals[4]), aes(x = x, y = y), fill = "grey") +
+  geom_vline(aes(xintercept = median(AUCECEXAM)), linetype = "solid", color = "grey32") +
+  ggtitle("Density of AUCECEXAM", "with median, 2 sd interval")
+p
+dev.off()
 
-summary(ls.df$AUCECEXAM)
-summary(ls.df$EXAM)
-summary(bs)
-# Let's look at the outcomes first. AUCEC and EXAM namely.
-# The AUCEC can take on values between 0 and 1, with higher being better.
-# A random process should produce an AUCEC of 0.5
-hist(ls.df$AUCECEXAM)
-plot(density(ls.df$AUCECEXAM))
-# The hist and density plots show that the data is distributed normal-ish
-# with two small bumps close to 0.75 and 0.8 so maybe 2 gaussians overlayed.
-# With the limitation between 0 and 1, a beta likelihood should
-# be the right fit here.
+aucecdens.intervals = mean(d$AUCECDENSITY) + (seq(-4, 4, 2) * sd(d$AUCECDENSITY))
+aucecdens.intervals
+pdf("exp-aucecdens.pdf")
+p = ggplot(d, aes(x = AUCECDENSITY)) +
+  geom_density(color = "grey22")
+foo = ggplot_build(p)$data[[1]]
+p = p +
+  geom_area(
+    data = subset(foo, x >= aucecdens.intervals[2] & x <= aucecdens.intervals[4]), aes(x = x, y = y), fill = "grey") +
+  geom_vline(aes(xintercept = median(AUCECDENSITY)), linetype = "solid", color = "grey32") +
+  ggtitle("Density of AUCECDENSITY", "with median, 2 sd interval")
+p
+dev.off()
 
-# The EXAM score can also take on values between 0 and 1, with lower being better.
-hist(ls.df$EXAM)
-plot(density(ls.df$EXAM))
-# Again it looks like there are two gaussians one with a peak at 0.2 and one at 0.3
-# Again, with the limitation between 0 and 1, a beta likelihood
-# should be the right choice.
+d = subset(d, d$Algorithm == "Linespots")
+
+pdf("exp-box-lang.pdf")
+p1 = ggplot(d, aes(x=Language, y=EXAM)) + geom_boxplot()
+p2 = ggplot(d, aes(x=Language, y=AUCECEXAM)) + geom_boxplot()
+grid.arrange(p1, p2, ncol=1)
+dev.off()
+
+pdf("exp-box-domain.pdf")
+p1 = ggplot(d, aes(x=Domain, y=EXAM)) + geom_boxplot()
+p2 = ggplot(d, aes(x=Domain, y=AUCECEXAM)) + geom_boxplot()
+grid.arrange(p1, p2, ncol=1)
+dev.off()
+
+fix.intervals = mean(d$FixCount) + (seq(-4, 4, 2) * sd(d$FixCount))
+fix.intervals
+pdf("exp-fix.pdf")
+p = ggplot(d, aes(x = FixCount)) +
+  geom_density(color = "grey22")
+foo = ggplot_build(p)$data[[1]]
+p = p +
+  geom_area(
+    data = subset(foo, x >= fix.intervals[2] & x <= fix.intervals[4]), aes(x = x, y = y), fill = "grey") +
+  geom_vline(aes(xintercept = median(FixCount)), linetype = "solid", color = "grey32") +
+  ggtitle("Density of FixCount", "with median, 2 sd interval")
+p
+dev.off()
+
+loc.intervals = mean(d$LOC) + (seq(-4, 4, 2) * sd(d$LOC))
+loc.intervals
+pdf("exp-loc.pdf")
+p = ggplot(d, aes(x = LOC)) +
+  geom_density(color = "grey22")
+foo = ggplot_build(p)$data[[1]]
+p = p +
+  geom_area(
+    data = subset(foo, x >= loc.intervals[2] & x <= loc.intervals[4]), aes(x = x, y = y), fill = "grey") +
+  geom_vline(aes(xintercept = median(LOC)), linetype = "solid", color = "grey32") +
+  ggtitle("Density of LOC", "with median, 2 sd interval")
+p
+dev.off()
+
+commit.intervals = mean(d$Commits) + (seq(-4, 4, 2) * sd(d$Commits))
+commit.intervals
+pdf("exp-commit.pdf")
+p = ggplot(d, aes(x = Commits)) +
+  geom_density(color = "grey22")
+foo = ggplot_build(p)$data[[1]]
+p = p +
+  geom_area(
+    data = subset(foo, x >= commit.intervals[2] & x <= commit.intervals[4]), aes(x = x, y = y), fill = "grey") +
+  geom_vline(aes(xintercept = median(Commits)), linetype = "solid", color = "grey32") +
+  ggtitle("Density of Commits", "with median, 2 sd interval")
+p
+dev.off()
+
+origin.intervals = mean(d$Origin) + (seq(-4, 4, 2) * sd(d$Origin))
+origin.intervals
+pdf("exp-origin.pdf")
+p = ggplot(d, aes(x = Origin)) +
+  geom_density(color = "grey22")
+foo = ggplot_build(p)$data[[1]]
+p = p +
+  geom_area(
+    data = subset(foo, x >= origin.intervals[2] & x <= origin.intervals[4]), aes(x = x, y = y), fill = "grey") +
+  geom_vline(aes(xintercept = median(Origin)), linetype = "solid", color = "grey32") +
+  ggtitle("Density of Origin", "with median, 2 sd interval")
+p
+dev.off()

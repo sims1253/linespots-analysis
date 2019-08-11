@@ -196,7 +196,7 @@ mcmc_areas(as.matrix(projpred5), pars = c('(Intercept)', names(cvs5$vind[1:sugge
 
 
 projpred6 = stan_glm(EInspect25EXAM ~ predictors,
-                     family = gaussian(), data = bs.data, prior = prior_coeff,
+                     family = poisson(), data = bs.data, prior = prior_coeff,
                      chains = 4, iter = 2000, seed = SEED, adapt_delta=0.99999)
 summary(projpred6) # Rhat and n_eff
 
@@ -205,10 +205,10 @@ cvs6$vind
 suggest_size(cvs6)
 varsel_plot(cvs6, stats = c('elpd', 'rmse'), deltas=T)
 # While suggest_size suggests 9 predictors, varsel_plot makes it seem like 5 or 6 might be a good point instead.
-# That would give Algorithm, Domain, Language, Project, LOC, Weighting as predictors.
-# The mcmc_areas also makes Origin and commit seem usefull though.
+# That would give Algorithm, Domain, Language, Project, LOC as predictors.
 
-mcmc_areas(as.matrix(projpred6), pars = c('(Intercept)', names(cvs6$vind[1:suggest_size(cvs6)]), 'sigma'))
+
+mcmc_areas(as.matrix(projpred6), pars = c('(Intercept)', names(cvs6$vind[1:suggest_size(cvs6)])))
 mcmc_areas(as.matrix(projpred6), pars = c(names(cvs6$vind[1:suggest_size(cvs6)])))
 
 

@@ -454,7 +454,7 @@ dev.off()
 # we should accept the uncertainty.
 hypothesis(m3.2, "AlgorithmBugspots=0")
 pdf("rq4-exam-h1.pdf")
-plot(hypothesis(m3.2, "Timecommit=0"))
+plot(hypothesis(m3.2, "AlgorithmBugspots=0"))
 dev.off()
 # Using hypothesis testing, it seems that there is no difference between any of the effects
 # of the weighting functions.
@@ -626,7 +626,7 @@ dev.off()
 # we should accept the uncertainty.
 hypothesis(m4.2, "AlgorithmBugspots=0")
 pdf("rq4-aucec-h1.pdf")
-plot(hypothesis(m4.2, "Timecommit=0"))
+plot(hypothesis(m4.2, "AlgorithmBugspots=0"))
 dev.off()
 # Using hypothesis testing, it seems that there is no difference between any of the effects
 # of the weighting functions.
@@ -734,6 +734,53 @@ loo5.3 = loo(m5.3)
 loo_compare(loo5.1, loo5.2, loo5.3)
 save(m5.1, m5.2, m5.3, file="m5.RData")
 
+summary(m5.1)
+
+fixef(m5.1, summary=TRUE)
+# While the estimated means are similar, the estimated errors differ. m4.2 has more uncertainty.
+# Both however seem to consider the coefficiencts to be very similar.
+
+# We continue with the second model due to similar loo performance and better sampling than m4.1
+stanplot(m5.1, type="areas", pars="^b_Algorithm")
+pdf("rq4-exam25-mcmc-area.pdf")
+title = ggtitle("Posterior distribution",
+                "with medians and 95% intervals")
+mcmc_areas(as.matrix(m4.2),
+           pars = c("b_AlgorithmBugspots"),
+           prob = 0.95) + title
+dev.off()
+# Visualization of the numbers before.
+
+# We will analyze m4.2 as it has the better sampling behaviour. While it is more uncertain
+# we should accept the uncertainty.
+hypothesis(m5.1, "AlgorithmBugspots=0")
+pdf("rq4-exam25-h1.pdf")
+plot(hypothesis(m5.1, "AlgorithmBugspots=0"))
+dev.off()
+
+post.ls = posterior_predict(m5.1, newdata = subset(d, d$Algorithm == "Linespots"), seed=SEED)
+post.bs = posterior_predict(m5.1, newdata = subset(d, d$Algorithm == "Bugspots"), seed=SEED)
+diff_lb = tibble("Effect" = as.vector(post.ls - post.bs))
+lb.intervals = mean(diff_lb$Effect)+(seq(-4,4,2) * sd(diff_lb$Effect))
+lb.intervals
+pdf("rq4-exam25-diff-lb.pdf")
+p = ggplot(diff_lb, aes(x=Effect)) +
+  geom_density(color="grey22")
+foo = ggplot_build(p)$data[[1]]
+
+p = p +
+  geom_area(data = subset(foo, x >= lb.intervals[2] & x <= lb.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= lb.intervals[1] & x <= lb.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= lb.intervals[4] & x <= lb.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
+  geom_vline(aes(xintercept=median(Effect)), linetype="solid", color="grey32") +
+  ggtitle("Linespots - Bugspots Marginal Effect on EXAM25", "with median, 2 and 4 sd intervals")
+p
+dev.off()
+
+pdf("rq4-exam25-marginal.pdf")
+marginal_effects(m5.1) # You have to manually press enter before running dev.off()
+dev.off()
+
 
 ##################################################################################
 
@@ -764,10 +811,10 @@ m6.1 = brm(
 )
 loo6.1 = loo(m6.1)
 
-m6.1b = brm(
-  bf(EInspect25EXAM ~ 1 + Algorithm + LOC + (1|Project), zi ~ (1|Project)),
+m6.2= brm(
+  formula = EInspect25EXAM ~ 1 + Algorithm + LOC + (1|Project) + (1|Language),
   data = d,
-  family=zero_inflated_poisson(),
+  family=poisson(),
   prior = c(
     prior(normal(0,0.5), class=Intercept),
     prior(normal(0,0.5), class=b),
@@ -778,49 +825,70 @@ m6.1b = brm(
   chains = 4,
   cores = parallel::detectCores(),
   sample_prior = TRUE,
-  control = list(adapt_delta=0.999),
-  seed = SEED
-)
-
-m6.2 = brm(
-  formula = EInspect25EXAM ~ 1 + Algorithm + (1|Domain) + (1|Project) + (1|Language) + LOC + Weighting,
-  data = d,
-  family=poisson(),
-  prior = c(
-    prior(normal(0,1), class=Intercept),
-    prior(normal(0,0.5), class=b),
-    prior(cauchy(0,0.1), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
-  ),
-  iter = 10000,
-  warmup = 2500,
-  chains = 4,
-  cores = parallel::detectCores(),
-  sample_prior = TRUE,
-  control = list(adapt_delta=0.999),
+  control = list(adapt_delta=0.999, max_treedepth=15),
   seed = SEED
 )
 loo6.2 = loo(m6.2)
 
 m6.3 = brm(
-  bf(EInspect25EXAM ~ 1 + Algorithm + LOC + (1|Project) + (1|Language) + (1|Domain) + Origin + Commits + Weighting),
+  formula = EInspect25EXAM ~ 1 + Algorithm + (1|Domain) + (1|Project) + (1|Language) + LOC,
   data = d,
   family=poisson(),
   prior = c(
-    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,1), class=Intercept),
     prior(normal(0,0.5), class=b),
-    prior(cauchy(0,0.1), class=sd),
-    prior(gamma(0.1, 0.1), class=phi)
+    prior(cauchy(0,0.1), class=sd)
   ),
   iter = 10000,
   warmup = 2500,
   chains = 4,
   cores = parallel::detectCores(),
   sample_prior = TRUE,
-  control = list(adapt_delta=0.999),
+  control = list(adapt_delta=0.999, max_treedepth=15),
   seed = SEED
 )
 loo6.3 = loo(m6.3)
 
 loo_compare(loo6.1, loo6.2, loo6.3)
 save(m6.1, m6.2, m6.3, file="m6.RData")
+
+
+
+fixef(m6.2, summary=TRUE)
+# While the estimated means are similar, the estimated errors differ. m4.2 has more uncertainty.
+# Both however seem to consider the coefficiencts to be very similar.
+
+# We continue with the second model due to similar loo performance and better sampling than m4.1
+stanplot(m6.2, type="areas", pars="^b_Algorithm")
+pdf("rq4-ei25-mcmc-area.pdf")
+title = ggtitle("Posterior distribution",
+                "with medians and 95% intervals")
+mcmc_areas(as.matrix(m4.2),
+           pars = c("b_AlgorithmBugspots"),
+           prob = 0.95) + title
+dev.off()
+# Visualization of the numbers before.
+
+# We will analyze m4.2 as it has the better sampling behaviour. While it is more uncertain
+# we should accept the uncertainty.
+hypothesis(m6.2, "AlgorithmBugspots=0")
+pdf("rq4-ei25-h1.pdf")
+plot(hypothesis(m6.2, "AlgorithmBugspots=0"))
+dev.off()
+
+post.ls = posterior_predict(m6.2, newdata = subset(d, d$Algorithm == "Linespots"), seed=SEED)
+post.bs = posterior_predict(m6.2, newdata = subset(d, d$Algorithm == "Bugspots"), seed=SEED)
+diff_lb = tibble("Effect" = as.vector(post.ls - post.bs))
+lb.intervals = mean(diff_lb$Effect)+(seq(-4,4,2) * sd(diff_lb$Effect))
+lb.intervals
+pdf("rq4-ei25-diff-lb-2.pdf")
+p = ggplot(diff_lb, aes(x=Effect)) +
+  geom_histogram(fill="grey", color="grey22", binwidth=1)  + scale_y_log10()+
+  geom_vline(aes(xintercept=median(Effect)), linetype="solid", color="grey32") +
+  ggtitle("Linespots - Bugspots Marginal Effect on EInspect25EXAM", "with median, on log scale")
+p
+dev.off()
+
+pdf("rq4-ei25-marginal.pdf")
+marginal_effects(m6.2) # You have to manually press enter before running dev.off()
+dev.off()
