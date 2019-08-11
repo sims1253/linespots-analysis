@@ -736,6 +736,40 @@ save(m5.1, m5.2, m5.3, file="m5.RData")
 
 summary(m5.1)
 
+pdf("rq4-exam25-m1-neff.pdf")
+mcmc_neff(neff_ratio(m4.2))
+dev.off()
+
+pdf("rq4-exam25-m1-rhat.pdf")
+mcmc_rhat(rhat(m4.2))
+dev.off()
+
+pdf("rq4-exam25-m1-trace.pdf")
+mcmc_trace(m4.2)
+dev.off()
+
+np <- nuts_params(m5.1)
+lp <- log_posterior(m5.1)
+pdf("rq4-exam25-m1-acc.pdf")
+mcmc_nuts_acceptance(np, lp)
+dev.off()
+
+pdf("rq4-exam25-m1-div.pdf")
+mcmc_nuts_divergence(np, lp)
+dev.off()
+
+pdf("rq4-exam25-m1-step.pdf")
+mcmc_nuts_stepsize(np, lp)
+dev.off()
+
+pdf("rq4-exam25-m1-tree.pdf")
+mcmc_nuts_treedepth(np, lp)
+dev.off()
+
+pdf("rq4-exam25-m1-energy.pdf")
+mcmc_nuts_energy(np, lp)
+dev.off()
+
 fixef(m5.1, summary=TRUE)
 # While the estimated means are similar, the estimated errors differ. m4.2 has more uncertainty.
 # Both however seem to consider the coefficiencts to be very similar.
@@ -852,6 +886,39 @@ loo6.3 = loo(m6.3)
 loo_compare(loo6.1, loo6.2, loo6.3)
 save(m6.1, m6.2, m6.3, file="m6.RData")
 
+pdf("rq4-ei25-m2-neff.pdf")
+mcmc_neff(neff_ratio(m4.2))
+dev.off()
+
+pdf("rq4-ei25-m2-rhat.pdf")
+mcmc_rhat(rhat(m4.2))
+dev.off()
+
+pdf("rq4-ei25-m2-trace.pdf")
+mcmc_trace(m4.2)
+dev.off()
+
+np <- nuts_params(m5.1)
+lp <- log_posterior(m5.1)
+pdf("rq4-ei25-m2-acc.pdf")
+mcmc_nuts_acceptance(np, lp)
+dev.off()
+
+pdf("rq4-ei25-m2-div.pdf")
+mcmc_nuts_divergence(np, lp)
+dev.off()
+
+pdf("rq4-ei25-m2-step.pdf")
+mcmc_nuts_stepsize(np, lp)
+dev.off()
+
+pdf("rq4-ei25-m2-tree.pdf")
+mcmc_nuts_treedepth(np, lp)
+dev.off()
+
+pdf("rq4-ei25-m2-energy.pdf")
+mcmc_nuts_energy(np, lp)
+dev.off()
 
 
 fixef(m6.2, summary=TRUE)
