@@ -1,5 +1,5 @@
 library(extraDistr)
-
+setwd("~/Documents/dev/linespots/linespots-analysis")
 # Models were:
 # EXAM ~ 1 + Weighting + LOC + (1|Project)
 # EXAM ~ 1 + Weighting + LOC + Origin + (1|Project) + (1|Domain) + (1|Language)
@@ -21,7 +21,7 @@ sensitivity1 <- function(intercept, parameters, var_intercepts) {
   for (i in 1:N) {
     b_project[i] = rnorm(1, m_project, intercept)
   }
-  plot(NULL, xlim = c(-1, 5), ylim = c(0, 1))
+  plot(NULL, xlim = c(-1, 5), ylim = c(0, 1), ylab = "Inverse Logit", xlab = "LOC")
   for (w in 1:3){
     for (i in 1:(N/3)) {
       j = i + ((w -1) * (N/3))
@@ -33,16 +33,20 @@ sensitivity1 <- function(intercept, parameters, var_intercepts) {
   }
   
 }
-
+pdf("psa-1.pdf")
 sensitivity1(10, 10, 10)
 dev.off()
+
 sensitivity1(1, 1, 1)
 dev.off()
+pdf("psa-2.pdf")
 sensitivity1(0.1, 0.1, 0.1) # This is way too small.
 dev.off()
 sensitivity1(1, 0.5, 1) # Seems sensible for both w
 dev.off()
+pdf("psa-3.pdf")
 sensitivity1(0.5, 0.5, 0.1) # This seems to work as well which means we can use the same prior for all models.
+dev.off()
 
 # For 1 + Weighting + LOC + (1|Language) + (1|Project)
 sensitivity2 <- function(intercept, parameters, var_intercepts) {

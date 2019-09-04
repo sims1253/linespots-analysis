@@ -441,7 +441,6 @@ m3.2 = brm(
   control = list(adapt_delta=0.999, max_treedepth=15),
   seed = SEED
 )
-loo3.3 = loo(m3.3)
 loo3.2 = loo(m3.2)
 
 summary(m3.2)
@@ -480,6 +479,29 @@ dev.off()
 pdf("rq1-exam-m2-energy.pdf")
 mcmc_nuts_energy(np, lp)
 dev.off()
+
+m3.3 = brm(
+  formula = EXAM ~ 1 + Weighting + LOC + (1|Project) + (1|Language) + Time,
+  data = ls.df,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  iter = 10000,
+  warmup = 2500,
+  chains = 4,
+  cores = parallel::detectCores(),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.999, max_treedepth=15),
+  seed = SEED
+)
+loo3.3 = loo(m3.3)
+
+loo_compare(loo3.1, loo3.2, loo3.3, loo3.4, loo3.5)
+
 
 loo_compare(loo3.1, loo3.2)
 # Both models seem to have the same performance in terms of loo.
@@ -576,6 +598,56 @@ p = p +
 p
 dev.off()
 
+
+
+post = posterior_samples(m3.2)
+sample.diff = tibble("lin" = inv_logit_scaled(post$b_Intercept) - inv_logit_scaled(post$b_Intercept + post$b_Weightinglinear_weighting_function))
+sample.diff$flat = inv_logit_scaled(post$b_Intercept) - inv_logit_scaled(post$b_Intercept + post$b_Weightingflat_weighting_function)
+lin.intervals = mean(sample.diff$lin)+(seq(-4,4,2) * sd(sample.diff$lin))
+flat.intervals = mean(sample.diff$flat)+(seq(-4,4,2) * sd(sample.diff$flat))
+
+plot(density(sample.diff$lin))
+plot(density(sample.diff$flat))
+plot(density(diff_lb$Effect))
+
+p = ggplot(sample.diff, aes(x=lin)) +
+  geom_density(color="grey22")
+foo = ggplot_build(p)$data[[1]]
+
+p1 = p +
+  geom_area(data = subset(foo, x >= lin.intervals[2] & x <= lin.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= lin.intervals[1] & x <= lin.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= lin.intervals[4] & x <= lin.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
+  geom_vline(aes(xintercept=median(lin)), linetype="solid", color="grey32") +
+  ggtitle("Google - Linear EXAM Contrast for Mean LOC", "with median, 2 and 4 sd intervals") + xlab("Contrast")
+
+p = ggplot(sample.diff, aes(x=flat)) +
+  geom_density(color="grey22")
+foo = ggplot_build(p)$data[[1]]
+
+p2 = p +
+  geom_area(data = subset(foo, x >= flat.intervals[2] & x <= flat.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= flat.intervals[1] & x <= flat.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= flat.intervals[4] & x <= flat.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
+  geom_vline(aes(xintercept=median(flat)), linetype="solid", color="grey32") +
+  ggtitle("Google - Flat EXAM Contrast for Mean LOC", "with median, 2 and 4 sd intervals") + xlab("Contrast")
+
+pdf("rq1-exam-sample-contrast-1.pdf")
+p1
+dev.off()
+
+pdf("rq1-exam-sample-contrast-2.pdf")
+p2
+dev.off()
+
+tmp = matrix(0L, ncol = 5, nrow = 6)
+for(i in seq(-1,4)){
+  sample.diff = inv_logit_scaled(post$b_Intercept + (i * post$b_LOC)) - inv_logit_scaled(post$b_Intercept + post$b_Weightinglinear_weighting_function + (i * post$b_LOC))
+  tmp[i,] = mean(sample.diff)+(seq(-4,4,2) * sd(sample.diff))
+}
+
+
+
 pdf("rq1-exam-marginal.pdf")
 marginal_effects(m3.2) # You have to manually press enter before running dev.off()
 dev.off()
@@ -583,7 +655,7 @@ dev.off()
 # Based on these numbers, we argue that there is no difference in weighting function effect on EXAM
 # score. This might depend on the depth as we only used one depth.
 
-save(m3.1, m3.2, file="m3.RData")
+save(m3.1, m3.2, m3.3, file="m3.RData")
 
 
 ############################################################
@@ -809,4 +881,63 @@ dev.off()
 
 save(m4.1, m4.2, file="m4.RData")
 
+
+############################################################################
+
+m5.2 = brm(
+  formula = EXAM25 ~ 1 + Weighting + LOC + (1|Project) + (1|Language),
+  data = ls.df,
+  family=Beta(),
+  prior = c(
+    prior(normal(0,0.5), class=Intercept),
+    prior(normal(0,0.5), class=b),
+    prior(cauchy(0,0.1), class=sd),
+    prior(gamma(0.1, 0.1), class=phi)
+  ),
+  iter = 10000,
+  warmup = 2500,
+  chains = 4,
+  cores = parallel::detectCores(),
+  sample_prior = TRUE,
+  control = list(adapt_delta=0.999, max_treedepth=15),
+  seed = SEED
+)
+
+post = posterior_samples(m5.2)
+sample.diff = tibble("lin" = inv_logit_scaled(post$b_Intercept) - inv_logit_scaled(post$b_Intercept + post$b_Weightinglinear_weighting_function))
+sample.diff$flat = inv_logit_scaled(post$b_Intercept) - inv_logit_scaled(post$b_Intercept + post$b_Weightingflat_weighting_function)
+lin.intervals = mean(sample.diff$lin)+(seq(-4,4,2) * sd(sample.diff$lin))
+flat.intervals = mean(sample.diff$flat)+(seq(-4,4,2) * sd(sample.diff$flat))
+
+plot(density(sample.diff$lin))
+plot(density(sample.diff$flat))
+
+p = ggplot(sample.diff, aes(x=lin)) +
+  geom_density(color="grey22")
+foo = ggplot_build(p)$data[[1]]
+
+p1 = p +
+  geom_area(data = subset(foo, x >= lin.intervals[2] & x <= lin.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= lin.intervals[1] & x <= lin.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= lin.intervals[4] & x <= lin.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
+  geom_vline(aes(xintercept=median(lin)), linetype="solid", color="grey32") +
+  ggtitle("Linespots - Bugspots Marginal Effect on EXAM25", "with median, 2 and 4 sd intervals") + xlab("Contrast")
+
+p = ggplot(sample.diff, aes(x=flat)) +
+  geom_density(color="grey22")
+foo = ggplot_build(p)$data[[1]]
+
+p2 = p +
+  geom_area(data = subset(foo, x >= flat.intervals[2] & x <= flat.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= flat.intervals[1] & x <= flat.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= flat.intervals[4] & x <= flat.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
+  geom_vline(aes(xintercept=median(flat)), linetype="solid", color="grey32") +
+  ggtitle("Linespots - Bugspots Marginal Effect on EXAM25", "with median, 2 and 4 sd intervals") + xlab("Contrast")
+grid.arrange(p1, p2, ncol=2)
+
+tmp = matrix(0L, ncol = 5, nrow = 6)
+for(i in seq(-1,4)){
+  sample.diff = inv_logit_scaled(foo$b_Intercept + (i * foo$b_LOC)) - inv_logit_scaled(foo$b_Intercept + foo$b_AlgorithmBugspots + (i * foo$b_LOC))
+  tmp[i,] = mean(sample.diff)+(seq(-4,4,2) * sd(sample.diff))
+}
 

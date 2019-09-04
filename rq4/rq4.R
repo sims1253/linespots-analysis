@@ -479,6 +479,32 @@ p
 dev.off()
 
 
+
+
+
+post = posterior_samples(m3.2)
+sample.diff = tibble("effect" = inv_logit_scaled(post$b_Intercept) - inv_logit_scaled(post$b_Intercept + post$b_AlgorithmBugspots))
+lin.intervals = mean(sample.diff$effect)+(seq(-4,4,2) * sd(sample.diff$effect))
+
+p = ggplot(sample.diff, aes(x=effect)) +
+  geom_density(color="grey22")
+foo = ggplot_build(p)$data[[1]]
+
+p1 = p +
+  geom_area(data = subset(foo, x >= lin.intervals[2] & x <= lin.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= lin.intervals[1] & x <= lin.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= lin.intervals[4] & x <= lin.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
+  geom_vline(aes(xintercept=median(effect)), linetype="solid", color="grey32") +
+  ggtitle("Linespots - Bugspots EXAM Contrast for Mean LOC", "with median, 2 and 4 sd intervals") + xlab("Contrast")
+
+pdf("rq4-exam-sample-contrast-1.pdf")
+p1
+dev.off()
+
+
+
+
+
 pdf("rq4-exam-marginal.pdf")
 marginal_effects(m3.2) # You have to manually press enter before running dev.off()
 dev.off()
@@ -686,7 +712,7 @@ m5.1 = brm(
   chains = 4,
   cores = parallel::detectCores(),
   sample_prior = TRUE,
-  control = list(adapt_delta=0.999),
+  control = list(adapt_delta=0.999, max_treedepth=15),
   seed = SEED
 )
 loo5.1 = loo(m5.1)
@@ -706,7 +732,7 @@ m5.2 = brm(
   chains = 4,
   cores = parallel::detectCores(),
   sample_prior = TRUE,
-  control = list(adapt_delta=0.999),
+  control = list(adapt_delta=0.999, max_treedepth=15),
   seed = SEED
 )
 loo5.2 = loo(m5.2)
@@ -726,7 +752,7 @@ m5.3 = brm(
   chains = 4,
   cores = parallel::detectCores(),
   sample_prior = TRUE,
-  control = list(adapt_delta=0.999),
+  control = list(adapt_delta=0.9999, max_treedepth=15),
   seed = SEED
 )
 loo5.3 = loo(m5.3)
@@ -734,22 +760,22 @@ loo5.3 = loo(m5.3)
 loo_compare(loo5.1, loo5.2, loo5.3)
 save(m5.1, m5.2, m5.3, file="m5.RData")
 
-summary(m5.1)
+summary(m5.2)
 
 pdf("rq4-exam25-m1-neff.pdf")
-mcmc_neff(neff_ratio(m4.2))
+mcmc_neff(neff_ratio(m5.2))
 dev.off()
 
 pdf("rq4-exam25-m1-rhat.pdf")
-mcmc_rhat(rhat(m4.2))
+mcmc_rhat(rhat(m5.2))
 dev.off()
 
 pdf("rq4-exam25-m1-trace.pdf")
-mcmc_trace(m4.2)
+mcmc_trace(m5.2)
 dev.off()
 
-np <- nuts_params(m5.1)
-lp <- log_posterior(m5.1)
+np <- nuts_params(m5.2)
+lp <- log_posterior(m5.2)
 pdf("rq4-exam25-m1-acc.pdf")
 mcmc_nuts_acceptance(np, lp)
 dev.off()
@@ -770,16 +796,16 @@ pdf("rq4-exam25-m1-energy.pdf")
 mcmc_nuts_energy(np, lp)
 dev.off()
 
-fixef(m5.1, summary=TRUE)
+fixef(m5.2, summary=TRUE)
 # While the estimated means are similar, the estimated errors differ. m4.2 has more uncertainty.
 # Both however seem to consider the coefficiencts to be very similar.
 
 # We continue with the second model due to similar loo performance and better sampling than m4.1
-stanplot(m5.1, type="areas", pars="^b_Algorithm")
+stanplot(m5.2, type="areas", pars="^b_Algorithm")
 pdf("rq4-exam25-mcmc-area.pdf")
 title = ggtitle("Posterior distribution",
                 "with medians and 95% intervals")
-mcmc_areas(as.matrix(m4.2),
+mcmc_areas(as.matrix(m5.2),
            pars = c("b_AlgorithmBugspots"),
            prob = 0.95) + title
 dev.off()
@@ -787,14 +813,16 @@ dev.off()
 
 # We will analyze m4.2 as it has the better sampling behaviour. While it is more uncertain
 # we should accept the uncertainty.
-hypothesis(m5.1, "AlgorithmBugspots=0")
+hypothesis(m5.2, "AlgorithmBugspots=0")
 pdf("rq4-exam25-h1.pdf")
-plot(hypothesis(m5.1, "AlgorithmBugspots=0"))
+plot(hypothesis(m5.2, "AlgorithmBugspots=0"))
 dev.off()
 
-post.ls = posterior_predict(m5.1, newdata = subset(d, d$Algorithm == "Linespots"), seed=SEED)
-post.bs = posterior_predict(m5.1, newdata = subset(d, d$Algorithm == "Bugspots"), seed=SEED)
-diff_lb = tibble("Effect" = as.vector(post.ls - post.bs))
+# post.ls = posterior_predict(m5.2, newdata = subset(d, d$Algorithm == "Linespots"), seed=SEED)
+# post.bs = posterior_predict(m5.2, newdata = subset(d, d$Algorithm == "Bugspots"), seed=SEED)
+diff_lb = tibble("Effect" = as.vector(
+  posterior_predict(m5.2, newdata = subset(d, d$Algorithm == "Linespots"), seed=SEED) -
+  posterior_predict(m5.2, newdata = subset(d, d$Algorithm == "Bugspots"), seed=SEED)))
 lb.intervals = mean(diff_lb$Effect)+(seq(-4,4,2) * sd(diff_lb$Effect))
 lb.intervals
 pdf("rq4-exam25-diff-lb.pdf")
@@ -811,8 +839,37 @@ p = p +
 p
 dev.off()
 
+p = ggplot(diff_lb, aes(x=Effect)) +
+  geom_histogram(fill="grey", color="grey22")  + scale_y_log10()+
+  geom_vline(aes(xintercept=median(Effect)), linetype="solid", color="grey32") +
+  ggtitle("Linespots - Bugspots Marginal Effect on EInspect25EXAM", "with median, on log scale")
+p
+
+
+
+post = posterior_samples(m5.2)
+sample.diff = tibble("effect" = inv_logit_scaled(post$b_Intercept) - inv_logit_scaled(post$b_Intercept + post$b_AlgorithmBugspots))
+lin.intervals = mean(sample.diff$effect)+(seq(-4,4,2) * sd(sample.diff$effect))
+
+p = ggplot(sample.diff, aes(x=effect)) +
+  geom_density(color="grey22")
+foo = ggplot_build(p)$data[[1]]
+
+p1 = p +
+  geom_area(data = subset(foo, x >= lin.intervals[2] & x <= lin.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= lin.intervals[1] & x <= lin.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= lin.intervals[4] & x <= lin.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
+  geom_vline(aes(xintercept=median(effect)), linetype="solid", color="grey32") +
+  ggtitle("Linespots - Bugspots EXAM25 Contrast for Mean LOC", "with median, 2 and 4 sd intervals") + xlab("Contrast")
+
+pdf("rq4-exam25-sample-contrast-1.pdf")
+p1
+dev.off()
+
+
+
 pdf("rq4-exam25-marginal.pdf")
-marginal_effects(m5.1) # You have to manually press enter before running dev.off()
+marginal_effects(m5.2) # You have to manually press enter before running dev.off()
 dev.off()
 
 
@@ -887,19 +944,19 @@ loo_compare(loo6.1, loo6.2, loo6.3)
 save(m6.1, m6.2, m6.3, file="m6.RData")
 
 pdf("rq4-ei25-m2-neff.pdf")
-mcmc_neff(neff_ratio(m4.2))
+mcmc_neff(neff_ratio(m6.2))
 dev.off()
 
 pdf("rq4-ei25-m2-rhat.pdf")
-mcmc_rhat(rhat(m4.2))
+mcmc_rhat(rhat(m6.2))
 dev.off()
 
 pdf("rq4-ei25-m2-trace.pdf")
-mcmc_trace(m4.2)
+mcmc_trace(m6.2)
 dev.off()
 
-np <- nuts_params(m5.1)
-lp <- log_posterior(m5.1)
+np <- nuts_params(m6.2)
+lp <- log_posterior(m6.2)
 pdf("rq4-ei25-m2-acc.pdf")
 mcmc_nuts_acceptance(np, lp)
 dev.off()
@@ -930,7 +987,7 @@ stanplot(m6.2, type="areas", pars="^b_Algorithm")
 pdf("rq4-ei25-mcmc-area.pdf")
 title = ggtitle("Posterior distribution",
                 "with medians and 95% intervals")
-mcmc_areas(as.matrix(m4.2),
+mcmc_areas(as.matrix(m6.2),
            pars = c("b_AlgorithmBugspots"),
            prob = 0.95) + title
 dev.off()
@@ -955,6 +1012,32 @@ p = ggplot(diff_lb, aes(x=Effect)) +
   ggtitle("Linespots - Bugspots Marginal Effect on EInspect25EXAM", "with median, on log scale")
 p
 dev.off()
+
+
+
+
+post = posterior_samples(m6.2)
+sample.diff = tibble("effect" = inv_logit_scaled(post$b_Intercept) - inv_logit_scaled(post$b_Intercept + post$b_AlgorithmBugspots))
+lin.intervals = mean(sample.diff$effect)+(seq(-4,4,2) * sd(sample.diff$effect))
+
+p = ggplot(sample.diff, aes(x=effect)) +
+  geom_density(color="grey22")
+foo = ggplot_build(p)$data[[1]]
+
+p1 = p +
+  geom_area(data = subset(foo, x >= lin.intervals[2] & x <= lin.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= lin.intervals[1] & x <= lin.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= lin.intervals[4] & x <= lin.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
+  geom_vline(aes(xintercept=median(effect)), linetype="solid", color="grey32") +
+  ggtitle("Linespots - Bugspots EInspect25EXAM Contrast for Mean LOC", "with median, 2 and 4 sd intervals") + xlab("Contrast")
+
+pdf("rq4-ei25-sample-contrast-1.pdf")
+p1
+dev.off()
+
+
+
+
 
 pdf("rq4-ei25-marginal.pdf")
 marginal_effects(m6.2) # You have to manually press enter before running dev.off()

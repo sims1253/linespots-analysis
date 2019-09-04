@@ -105,13 +105,13 @@ dev.off()
 
 
 
-pdf("rq3-exam25-hdm.pdf")
-ggplot(ls.df, aes(EXAM25, hdMaxLOCEXAM)) +
+pdf("rq3-examf-hdm.pdf")
+ggplot(ls.df, aes(EXAMF, hdMaxLOCEXAM)) +
   geom_point() +
   geom_abline(slope=1, intercept=0, color="grey22") +
   scale_y_log10() +
   scale_x_log10() +
-  ggtitle("Correlation of EXAM 25 and hdMaxLOCEXAM", "log scale, with y=X line")
+  ggtitle("Correlation of EXAMF and hdMaxLOCEXAM", "log scale, with y=X line")
 dev.off()
 
 

@@ -513,6 +513,27 @@ p
 dev.off()
 
 
+post = posterior_samples(m3.2)
+sample.diff = tibble("effect" = inv_logit_scaled(post$b_Intercept) - inv_logit_scaled(post$b_Intercept + post$b_Timecommit))
+lin.intervals = mean(sample.diff$effect)+(seq(-4,4,2) * sd(sample.diff$effect))
+
+p = ggplot(sample.diff, aes(x=effect)) +
+  geom_density(color="grey22")
+foo = ggplot_build(p)$data[[1]]
+
+p1 = p +
+  geom_area(data = subset(foo, x >= lin.intervals[2] & x <= lin.intervals[4]), aes(x=x, y=y), fill="grey") +
+  geom_area(data = subset(foo, x >= lin.intervals[1] & x <= lin.intervals[2]), aes(x=x, y=y), fill="lightgrey") +
+  geom_area(data = subset(foo, x >= lin.intervals[4] & x <= lin.intervals[5]), aes(x=x, y=y), fill="lightgrey") + 
+  geom_vline(aes(xintercept=median(effect)), linetype="solid", color="grey32") +
+  ggtitle("Time - Index EXAM Contrast for Mean LOC", "with median, 2 and 4 sd intervals") + xlab("Contrast")
+
+pdf("rq2-exam-sample-contrast-1.pdf")
+p1
+dev.off()
+
+
+
 pdf("rq2-exam-marginal.pdf")
 marginal_effects(m3.2) # You have to manually press enter before running dev.off()
 dev.off()

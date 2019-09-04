@@ -7,7 +7,7 @@ options(mc.cores = parallel::detectCores())
 
 SEED = 140919 # The day I move in with my gf
 
-setwd("~/Documents/dev/linespots/linespots-analysis/rq3")
+setwd("~/Documents/dev/linespots/linespots-analysis/rq5")
 
 d = read_delim('../data.csv',
                delim = ",",
@@ -99,30 +99,17 @@ p2 = p +
 grid.arrange(p1, p2, ncol=1)
 dev.off()
 
-
-
-srd.intervals = mean(ls.df$SRD) + (seq(-4, 4, 2) * sd(ls.df$SRD))
-srd.intervals
-# pdf("rq5-mrd-srd.pdf")
-p = ggplot(ls.df, aes(x = SRD)) +
-  geom_density(color = "grey22")
-foo = ggplot_build(p)$data[[1]]
-p1 = p +
-  geom_area(
-    data = subset(foo, x >= srd.intervals[2] & x <= srd.intervals[4]), aes(x = x, y = y), fill = "grey") +
-  geom_vline(aes(xintercept = median(SRD)), linetype = "solid", color = "grey32") +
-  ggtitle("Density of SRD", "with median, 2 sd interval")
-
+pdf("rq5-mrd.pdf")
 mrd.intervals = mean(ls.df$MRD) + (seq(-4, 4, 2) * sd(ls.df$MRD))
 mrd.intervals
 p = ggplot(ls.df, aes(x = MRD)) +
   geom_density(color = "grey22")
 foo = ggplot_build(p)$data[[1]]
-p2 = p +
+p = p +
   geom_area(
     data = subset(foo, x >= mrd.intervals[2] & x <= mrd.intervals[4]), aes(x = x, y = y), fill = "grey") +
   geom_vline(aes(xintercept = median(MRD)), linetype = "solid", color = "grey32") +
   ggtitle("Density of MRD", "with median, 2 sd interval")
-grid.arrange(p1, p2, ncol=1)
+p
 dev.off()
 
