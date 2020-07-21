@@ -1,0 +1,1362 @@
+---
+title: "Linespots Runtime Empirical Analysis"
+css: ./rmarkdown_resources/tables_format.css
+author: "Maximilian Scholz"
+output:
+  bookdown::html_document2:
+    toc: true
+    toc_float: true
+    df_print: paged
+bibliography: [./rmarkdown_resources/packages.bib]
+---
+
+
+```{r, echo=FALSE, message=FALSE}
+# Here, we simply create a bib file to reference all packages we are using in this script.
+knitr::write_bib(c("skimr", "ggdag", "dagitty", "loo", "tidyverse", "patchwork", "brms", "bayesplot", "ggthemes"), file = "./rmarkdown_resources/packages.bib")
+```
+
+# Setup {#setup}
+
+## Packages and Functions
+
+The code below simply cleans your environment to avoid loading unnecessary functions or variables and loads the libraries used in our script. We begin by installing and loading the required packages. For BDA, we use mainly @R-brms, whereas @R-bayesplot provides support with various plots and functions to calculate credible intervals.
+
+```{r, message=FALSE, warning=FALSE}
+rm( list = ls() )  # Cleans the environment.
+# You can install packages in case they are not installed already.
+# In case you don't have rstan installed, see:
+# https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started
+# install.packages( c(("skimr", "ggdag", "dagitty", "loo", "tidyverse", "patchwork",
+#                      "brms", "bayesplot", "ggthemes")
+library(skimr)     # For getting data summaries
+library(tidyverse) # For transforming and visualizing data.
+library(ggthemes)  # Themes for ggplot
+ggplot2::theme_set(theme_tufte())
+library(patchwork) # Combining many plots into the same figure.
+
+library(ggdag)     # For DAG analysis
+library(dagitty)   # For DAG analysis
+
+library(brms)      # BDA packages. Alternatively, one can use rethinking & rstanarm.
+library(loo)       # For comparing different models' performance
+library(bayesplot) # Plotting BDA output by Gabry et al.
+bayesplot::color_scheme_set("viridis") #Uses the viridis palette on bayesplots
+
+```
+
+For reproducibility and efficiency we set an arbitrary seed, sampling parameters and
+the number of cores to speed up the MCMC sampling.
+
+```{r, message=FALSE, warning=FALSE}
+SAMPLES = 5000
+WARMUP = 1000
+CHAINS = 4
+SEED = 2020
+DELTA = 0.99
+TREE = 13
+set.seed(SEED)
+options(mc.cores = parallel::detectCores())
+```
+
+***
+
+# Overview of the Dataset {#data-overview .tabset .tabset-fade .tabset-pills}
+
+First we load the data and take a look at it. As this report is analyzing the runtime
+differences between Bugspots and Linespots, we focus only on those variables relevant
+to runtime.
+
+```{r, message=FALSE, warning=FALSE}
+d = read_delim(
+  '../data/full_evaluation.csv',
+  delim = ",",
+  locale = locale(decimal_mark = "."),
+  col_names = TRUE,
+  col_types = cols(
+    AUCEC1 = col_double(),
+    AUCEC100 = col_double(),
+    AUCEC20 = col_double(),
+    AUCEC5 = col_double(),
+    AUROC = col_double(),
+    Algorithm = col_factor(),
+    Depth = col_double(),
+    EInspect10 = col_double(),
+    EInspect100 = col_double(),
+    EInspect200 = col_double(),
+    EInspect50 = col_double(),
+    EInspectF = col_double(),
+    EXAM = col_double(),
+    FixCount = col_double(),
+    Future = col_double(),
+    LOC = col_double(),
+    Origin = col_double(),
+    Project = col_factor(),
+    Runtime = col_double(),
+    Time = col_factor(),
+    Weight = col_factor(),
+    comit_version = col_factor(),
+    commits = col_double(),
+    language = col_factor(),
+    url = col_factor()
+  )
+)
+d = data.frame("Runtime" = d$Runtime, "Algorithm" =  d$Algorithm, "LOC" = d$LOC,
+               "FixCount" = d$FixCount, "Project" = d$Project, "language" = d$language)
+```
+
+## Descriptive Statistics {-}
+
+```{r, dataset-statistics, echo=FALSE}
+skim(d)
+```
+
+There seem to be some cases where no faults were found in the pseudo future. As
+those cases can't tell us anything, we will remove them.
+
+```{r, message=FALSE, warning=FALSE}
+d = subset(d, d$FixCount != 0)
+```
+
+## Distributions (Histograms) {-}
+
+
+```{r, dataset-raw-histogram, out.width="80%", fig.align="center", echo=FALSE}
+a = ggplot(d, aes(x=Runtime)) +
+  geom_histogram(bins = 30)
+
+b = ggplot(d, aes(x=LOC)) +
+  geom_histogram(bins = 30)
+
+c = ggplot(d, aes(x=FixCount)) +
+  geom_histogram(bins = 30)
+a / (b + c)
+
+```
+
+## Scaled Distributions (Histograms) {-}
+
+With LOC spanning multiple orders of magnitude, we standardize it to improve sampling performance.
+
+```{r}
+d$LOC = scale(d$LOC)
+d$FixCount = scale(d$FixCount)
+```
+
+```{r, dataset-scaled-histogram, out.width="80%", fig.align="center", echo=FALSE}
+b = ggplot(d, aes(x=LOC)) +
+  geom_histogram(bins = 30)
+
+c = ggplot(d, aes(x=FixCount)) +
+  geom_histogram(bins = 30)
+
+b + c
+
+```
+
+***
+
+
+# DAG Analysis {#DAG .tabset .tabset-fade .tabset-pills}
+
+Based on the the data we gathered, we built a DAG, representing the causal
+relationships as we assume them.
+In this case, the analysis is rather simple.
+We designed the experiment in such a way, that there is no incoming causal
+relationship to algorithm so we could use all parameters without confounding problems.
+
+## DAG {-}
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+Runtime_dag <- dagify(
+  Project ~ Language,
+  LOC ~ Project,
+  FixCount ~ Project,
+  Runtime ~ Algorithm + LOC + FixCount + Project + Language,
+  exposure = "Algorithm",
+  outcome = "Runtime",
+  labels = c(
+    "Project" = "Project",
+    "Language" = "Language",
+    "LOC" = "LOC",
+    "Runtime" = "Runtime",
+    "Algorithm" = "Algorithm",
+    "FixCount" = "Fix Count"
+  )
+)
+
+ggdag(Runtime_dag, text = FALSE, use_labels = "label", layout="circle") +
+  theme_dag()
+```
+
+## Causal Paths {-}
+The graph shows that there is only a single possible causal path from 'Algorithm' to 'Runtime', so regardless of which other predictor we add to a model, they will not add bias or confounding.
+```{r,echo=FALSE, message=FALSE, warning=FALSE}
+ggdag_paths(Runtime_dag,
+            text = FALSE,
+            use_labels = "label",
+            shadow = TRUE,adjust_for = c("LOC", "FixCount", "Project", "Language"),
+            layout="circle") +
+  theme_dag()
+```
+
+
+
+## Adjustment Sets {-}
+Finally, we can also explicitly test the four sets of predictors we plan on using for being
+adjustment sets.
+
+```{r, message=FALSE, results="hold", warning=FALSE}
+isAdjustmentSet(Runtime_dag, c("LOC"))
+isAdjustmentSet(Runtime_dag, c("LOC", "FixCount"))
+isAdjustmentSet(Runtime_dag, c("LOC", "FixCount", "Project"))
+isAdjustmentSet(Runtime_dag, c("LOC", "FixCount", "Project", "Language"))
+
+```
+
+***
+
+# BDA workflow {#bda}
+We are interested in `Runtime` as our outcome, `Algorithm` as our exposure and control for `LOC`, `Project` and `language`.
+We build generalized linear models (GLM) for different predictor combinations and compare different likelihoods.
+
+## Lognormal Models {.tabset .tabset-fade .tabset-pills}
+$$
+\begin{split}
+    \mathcal{M_i}: \mathrm{Runtime_i} \thicksim &\ \mathrm{Lognormal}(\mu_i, \sigma_i) \\
+    \mu_i = &\ \alpha + \beta_A  \mathrm{Algorithm} + \beta_L \mathrm{LOC}\\
+    \alpha \thicksim &\ \mathrm{Normal(0,5)} \\
+    \beta_A, \beta_L \thicksim &\ \mathrm{Normal(0, 2)} \\
+    \sigma_i \thicksim &\ \mathrm{gamma(0.1, 0.01)} \\
+\end{split}
+$$
+
+### M2 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+
+ln2p = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC + FixCount),
+  data = d,
+  family = lognormal(),
+  prior = c(
+    prior(normal(0, 5), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(gamma(0.1, 0.01), class=sigma)
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(ln2p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+ln2 = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC + FixCount),
+  data = d,
+  family = lognormal(),
+  prior = c(
+    prior(normal(0, 5), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(gamma(0.1, 0.01), class=sigma)
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+summary(ln2)
+```
+
+Results:
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(ln2, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, warning=FALSE}
+mcmc_areas(ln2, pars = c("b_AlgorithmBugspots"), prob = 0.95)
+eff = conditional_effects(ln2, effects = c("Algorithm"))
+eff$Algorithm
+eff
+```
+
+And Diagnostics:
+All diagnostics look good.
+```{r, message=FALSE, warning=FALSE}
+min(neff_ratio(ln2))
+max(rhat(ln2))
+plot(ln2)
+```
+
+### M1 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+
+ln1p = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC),
+  data = d,
+  family = lognormal(),
+  prior = c(
+    prior(normal(0, 5), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(gamma(0.1, 0.01), class=sigma)
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(ln1p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+ln1 = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC),
+  data = d,
+  family = lognormal(),
+  prior = c(
+    prior(normal(0, 5), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(gamma(0.1, 0.01), class=sigma)
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+summary(ln1)
+pp_check(ln1, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+### M3 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+ln3p = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC +  + FixCount + (1 | Project)),
+  data = d,
+  family = lognormal(),
+  prior = c(
+    prior(normal(0, 5), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(gamma(0.1, 0.01), class =sd),
+    prior(gamma(0.1, 0.01), class=sigma)
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(ln3p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+ln3 = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC + FixCount + (1 | Project)),
+  data = d,
+  family = lognormal(),
+  prior = c(
+    prior(normal(0, 5), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(gamma(0.1, 0.01), class =sd),
+    prior(gamma(0.1, 0.01), class=sigma)
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+summary(ln3)
+pp_check(ln3, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+### M4 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+ln4p = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC +  + FixCount + (1 | Project)),
+  data = d,
+  family = lognormal(),
+  prior = c(
+    prior(normal(0, 5), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(gamma(0.1, 0.01), class =sd),
+    prior(gamma(0.1, 0.01), class=sigma)
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(ln4p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+ln4 = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC + FixCount + (1 | Project)),
+  data = d,
+  family = lognormal(),
+  prior = c(
+    prior(normal(0, 5), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(gamma(0.1, 0.01), class =sd),
+    prior(gamma(0.1, 0.01), class=sigma)
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+summary(ln4)
+pp_check(ln4, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+
+### Comparison {-}
+```{r, message=FALSE, results="hold", warning=FALSE, cache=TRUE}
+loo_ln1 = loo(ln1)
+loo_ln2 = loo(ln2)
+loo_ln3 = loo(ln3)
+loo_ln4 = loo(ln4)
+loo_compare(loo_ln1, loo_ln2, loo_ln3, loo_ln4)
+```
+
+## Shifted-Lognormal Models {.tabset .tabset-fade .tabset-pills}
+We use a shifted lognormal distribution as a runtime is a kind of response time.
+For the shift parameter, we use a uniform prior up to double the highest measured Runtime.
+$$
+\begin{split}
+    \mathcal{M}_1: \mathrm{Runtime_i} \thicksim &\ \mathrm{Shifted-Lognormal}(\mu_i, \sigma_i, ndt_i) \\
+    \mu_i = &\ \alpha + \beta_A  \mathrm{Algorithm} + \beta_L
+     \mathrm{LOC}\\
+    \alpha \thicksim &\ \mathrm{Normal(0,5)} \\
+    \beta_A, \beta_L \thicksim &\ \mathrm{Normal(0, 2)} \\
+    \sigma_i \thicksim &\ \mathrm{gamma(0.1, 0.01)} \\
+    ndt_i \thicksim &\ \mathrm{Uniform(0,210)} \\
+\end{split}
+$$
+
+### M2 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+
+sln2p = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC + FixCount),
+  data = d,
+  family = shifted_lognormal(),
+  prior = c(
+    prior(normal(0, 2), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(gamma(0.1, 0.01), class=sigma),
+    prior(uniform(0, 210), class=ndt)
+  ),
+  init = 0, chains = CHAINS, seed = SEED,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(sln2p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+sln2 = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC + FixCount),
+  data = d,
+  family = shifted_lognormal(),
+  prior = c(
+    prior(normal(0, 2), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(gamma(0.1, 0.01), class=sigma),
+    prior(uniform(0, 210), class=ndt)
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+summary(sln2)
+```
+
+Results:
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(sln2, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, warning=FALSE}
+mcmc_areas(sln2, pars = c("b_AlgorithmBugspots"), prob = 0.95)
+eff = conditional_effects(sln2, effects = c("Algorithm"))
+eff$Algorithm
+eff
+```
+
+And Diagnostics:
+All diagnostics look good.
+```{r, message=FALSE, warning=FALSE}
+min(neff_ratio(sln2))
+max(rhat(sln2))
+plot(sln2)
+```
+
+### M1 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+
+sln1p = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC),
+  data = d,
+  family = shifted_lognormal(),
+  prior = c(
+    prior(normal(0, 2), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(gamma(0.1, 0.01), class=sigma),
+    prior(uniform(0, 210), class=ndt)
+  ),
+  init = 0, chains = CHAINS, seed = SEED,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(sln1p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+sln1 = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC),
+  data = d,
+  family = shifted_lognormal(),
+  prior = c(
+    prior(normal(0, 2), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(gamma(0.1, 0.01), class=sigma),
+    prior(uniform(0, 210), class=ndt)
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+summary(sln1)
+pp_check(sln1, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+
+
+### M3 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+sln3p = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC + FixCount + (1 | Project)),
+  data = d,
+  family = shifted_lognormal(),
+  prior = c(
+    prior(normal(0, 2), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(gamma(0.1, 0.01), class=sd),
+    prior(gamma(0.1, 0.01), class=sigma),
+    prior(uniform(0, 210), class=ndt)
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(sln3p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+sln3 = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC + FixCount + (1 | Project)),
+  data = d,
+  family = shifted_lognormal(),
+  prior = c(
+    prior(normal(0, 2), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(gamma(0.1, 0.01), class=sd),
+    prior(gamma(0.1, 0.01), class=sigma),
+    prior(uniform(0, 210), class=ndt)
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+summary(sln3)
+pp_check(sln3, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+### M4 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+sln4p = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language)),
+  data = d,
+  family = shifted_lognormal(),
+  prior = c(
+    prior(normal(0, 2), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(gamma(0.1, 0.01), class=sd),
+    prior(gamma(0.1, 0.01), class=sigma),
+    prior(uniform(0, 210), class=ndt)
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(sln4p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+sln4 = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language)),
+  data = d,
+  family = shifted_lognormal(),
+  prior = c(
+    prior(normal(0, 2), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(gamma(0.1, 0.01), class=sd),
+    prior(gamma(0.1, 0.01), class=sigma),
+    prior(uniform(0, 210), class=ndt)
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+summary(sln4)
+pp_check(sln4, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+### Comparison {-}
+```{r, message=FALSE, results="hold", warning=FALSE, cache=TRUE}
+loo_sln1 = loo(sln1)
+loo_sln2 = loo(sln2)
+loo_sln3 = loo(sln3, reloo=TRUE)
+loo_sln4 = loo(sln4)
+loo_compare(loo_sln1, loo_sln2, loo_sln3, loo_sln4)
+```
+
+## Lognormal Mixtures {.tabset .tabset-fade .tabset-pills}
+We use a shifted lognormal distribution as a runtime is a kind of response time.
+
+$$
+\begin{split}
+    \mathcal{M}_1: \mathrm{Runtime_i} \thicksim &\ \mathrm{Mixture}(\mathrm{Lognormal}(\mu_{1i}, \sigma_{1i}), \mathrm{Lognormal}(\mu_{2i}, \sigma_{2i})) \\
+    \mu_{1i} = &\ \alpha_1 + \beta_{A_1}  \mathrm{Algorithm} + \beta_{L_1}  \mathrm{LOC}\\
+    \mu_{2i} = &\ \alpha_2 + \beta_{A_2}  \mathrm{Algorithm} + \beta_{L_2}  \mathrm{LOC}\\
+    \alpha_1, \alpha_2 \thicksim &\ \mathrm{Normal(0,5)} \\
+    \beta_{A_1}, \beta_{A_2}, \beta_{L_1}, \beta_{L_2} \thicksim &\ \mathrm{Normal(0, 2)} \\
+    \sigma_{1i}, \sigma_{2i} \thicksim &\ \mathrm{gamma(0.1, 0.01)}
+\end{split}
+$$
+
+### M3 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mln3p = brm(
+  Runtime ~ 1 + Algorithm + LOC + FixCount + (1 | Project),
+  data = d,
+  family = mixture(lognormal(), lognormal()),
+  prior = c(
+    prior(normal(-2, 1), class = "Intercept", dpar = "mu1"),
+    prior(normal(2, 1), class = "Intercept", dpar = "mu2"),
+    prior(normal(0, 4), class = "b", dpar = "mu1"),
+    prior(normal(0, 4), class = "b", dpar = "mu2"),
+    prior(weibull(2, 1), class = "sd", dpar = "mu1"),
+    prior(weibull(2, 1), class = "sd", dpar = "mu2"),
+    prior(weibull(2, 1), class = "sigma1"),
+    prior(weibull(2, 1), class = "sigma2")
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mln3p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mln3 = brm(
+  Runtime ~ 1 + Algorithm + LOC + FixCount + (1 | Project),
+  data = d,
+  family = mixture(lognormal(), lognormal()),
+  prior = c(
+    prior(normal(-2, 1), class = "Intercept", dpar = "mu1"),
+    prior(normal(2, 1), class = "Intercept", dpar = "mu2"),
+    prior(normal(0, 4), class = "b", dpar = "mu1"),
+    prior(normal(0, 4), class = "b", dpar = "mu2"),
+    prior(weibull(2, 1), class = "sd", dpar = "mu1"),
+    prior(weibull(2, 1), class = "sd", dpar = "mu2"),
+    prior(weibull(2, 1), class = "sigma1"),
+    prior(weibull(2, 1), class = "sigma2")
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+summary(mln3)
+```
+
+Results:
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mln3, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, warning=FALSE}
+mcmc_areas(mln3, pars = c("b_mu1_AlgorithmBugspots", "b_mu2_AlgorithmBugspots"), prob = 0.95)
+eff = conditional_effects(mln3, effects = c("Algorithm"))
+eff$Algorithm
+eff
+```
+
+And Diagnostics:
+All diagnostics look good.
+```{r, message=FALSE, warning=FALSE}
+min(neff_ratio(mln3))
+max(rhat(mln3))
+plot(mln3)
+```
+
+### M1 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mln1p = brm(
+  Runtime ~ 1 + Algorithm + LOC,
+  data = d,
+  family = mixture(lognormal(), lognormal()),
+  prior = c(
+    prior(normal(-2, 1), class = "Intercept", dpar = "mu1"),
+    prior(normal(2, 1), class = "Intercept", dpar = "mu2"),
+    prior(normal(0, 4), class = "b", dpar = "mu1"),
+    prior(normal(0, 4), class = "b", dpar = "mu2"),
+    prior(weibull(2, 1), class = "sigma1"),
+    prior(weibull(2, 1), class = "sigma2")
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mln1p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mln1 = brm(
+  Runtime ~ 1 + Algorithm + LOC,
+  data = d,
+  family = mixture(lognormal(), lognormal()),
+  prior = c(
+    prior(normal(-2, 1), class = "Intercept", dpar = "mu1"),
+    prior(normal(2, 1), class = "Intercept", dpar = "mu2"),
+    prior(normal(0, 4), class = "b", dpar = "mu1"),
+    prior(normal(0, 4), class = "b", dpar = "mu2"),
+    prior(weibull(2, 1), class = "sigma1"),
+    prior(weibull(2, 1), class = "sigma2")
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+summary(mln1)
+```
+
+### M2 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mln2p = brm(
+  Runtime ~ 1 + Algorithm + LOC + FixCount,
+  data = d,
+  family = mixture(lognormal(), lognormal()),
+  prior = c(
+    prior(normal(-2, 1), class = "Intercept", dpar = "mu1"),
+    prior(normal(2, 1), class = "Intercept", dpar = "mu2"),
+    prior(normal(0, 4), class = "b", dpar = "mu1"),
+    prior(normal(0, 4), class = "b", dpar = "mu2"),
+    prior(weibull(2, 1), class = "sigma1"),
+    prior(weibull(2, 1), class = "sigma2")
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mln2p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mln2 = brm(
+  Runtime ~ 1 + Algorithm + LOC + FixCount,
+  data = d,
+  family = mixture(lognormal(), lognormal()),
+  prior = c(
+    prior(normal(-2, 1), class = "Intercept", dpar = "mu1"),
+    prior(normal(2, 1), class = "Intercept", dpar = "mu2"),
+    prior(normal(0, 4), class = "b", dpar = "mu1"),
+    prior(normal(0, 4), class = "b", dpar = "mu2"),
+    prior(weibull(2, 1), class = "sigma1"),
+    prior(weibull(2, 1), class = "sigma2")
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+summary(mln2)
+```
+
+
+### M4 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mln4p = brm(
+  Runtime ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language),
+  data = d,
+  family = mixture(lognormal(), lognormal()),
+  prior = c(
+    prior(normal(-2, 1), class = "Intercept", dpar = "mu1"),
+    prior(normal(2, 1), class = "Intercept", dpar = "mu2"),
+    prior(normal(0, 4), class = "b", dpar = "mu1"),
+    prior(normal(0, 4), class = "b", dpar = "mu2"),
+    prior(weibull(2, 1), class = "sd", dpar = "mu1"),
+    prior(weibull(2, 1), class = "sd", dpar = "mu2"),
+    prior(weibull(2, 1), class = "sigma1"),
+    prior(weibull(2, 1), class = "sigma2")
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mln4p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mln4 = brm(
+  Runtime ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language),
+  data = d,
+  family = mixture(lognormal(), lognormal()),
+  prior = c(
+    prior(normal(-2, 1), class = "Intercept", dpar = "mu1"),
+    prior(normal(2, 1), class = "Intercept", dpar = "mu2"),
+    prior(normal(0, 4), class = "b", dpar = "mu1"),
+    prior(normal(0, 4), class = "b", dpar = "mu2"),
+    prior(weibull(2, 1), class = "sd", dpar = "mu1"),
+    prior(weibull(2, 1), class = "sd", dpar = "mu2"),
+    prior(weibull(2, 1), class = "sigma1"),
+    prior(weibull(2, 1), class = "sigma2")
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+summary(mln4)
+```
+
+### Comparison {-}
+```{r, mln-compare, message=FALSE, results="hold", warning=FALSE, cache=TRUE}
+loo_mln1 = loo(mln1)
+loo_mln2 = loo(mln2)
+loo_mln3 = loo(mln3)
+loo_mln4 = loo(mln4, reloo=TRUE)
+loo_compare(loo_mln1, loo_mln2, loo_mln3, loo_mln4)
+```
+
+## Shifted-Lognormal Mixtures {.tabset .tabset-fade .tabset-pills}
+Based on the shape of the data, we suspect that some of the samples come from projects or commits with very large commit sizes that take extremely long to parse.
+To model this behavior, we also build some mixture models combining a model that, presumably, will model the **normal** cases and a second model that will follow the more extreme cases.
+
+$$
+\begin{split}
+    \mathcal{M}_1: \mathrm{Runtim{ei}} \thicksim &\ \mathrm{Mixture}(\mathrm{Shifted-Lognormal}(\mu_{1i}, \sigma_{1i}, ndt_{1i}), \mathrm{Shifted-Lognormal}(\mu_{2i}, \sigma_{2i}, ndt_{2i})) \\
+    \mu_{1i} = &\ \alpha_1 + \beta_{A_1}  \mathrm{Algorithm} + \beta_{L_1}  \mathrm{LOC}\\
+    \mu_{2i} = &\ \alpha_2 + \beta_{A_2}  \mathrm{Algorithm} + \beta_{L_2}  \mathrm{LOC}\\
+    \alpha_1, \alpha_2 \thicksim &\ \mathrm{Normal(0,5)} \\
+    \beta_{A_1}, \beta_{A_2}, \beta_{L_1}, \beta_{L_2} \thicksim &\ \mathrm{Normal(0, 2)} \\
+    \sigma_{1i}, \sigma_{2i} \thicksim &\ \mathrm{gamma(0.1, 0.01)} \\
+    ndt_{1i} \thicksim &\ \mathrm{Uniform(0,0.005)} \\
+    ndt_{2i} \thicksim &\ \mathrm{Uniform(0,210)}
+\end{split}
+$$
+
+
+### M3 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+msln3p = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC + FixCount + (1 | Project)),
+  d,
+  family = mixture(shifted_lognormal(), shifted_lognormal()),
+  prior = c(
+    prior(normal(-2, 2), class = "Intercept", dpar = "mu1"),
+    prior(normal(2, 2), class = "Intercept", dpar = "mu2"),
+    prior(normal(0, 4), class = "b", dpar ="mu1"),
+    prior(normal(0, 4), class = "b", dpar ="mu2"),
+    prior(uniform(0, 0.005), class = "ndt1"),
+    prior(uniform(0, 210), class = "ndt2"),
+    prior(gamma(0.1, 0.01), class = "sd", dpar = "mu1"),
+    prior(gamma(0.1, 0.01), class = "sd", dpar = "mu2"),
+    prior(gamma(0.1, 0.01), class = "sigma1"),
+    prior(gamma(0.1, 0.01), class = "sigma2")
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(msln3p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+msln3 = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC + FixCount + (1 | Project)),
+  d,
+  family = mixture(shifted_lognormal(), shifted_lognormal()),
+  prior = c(
+    prior(normal(-2, 2), class = "Intercept", dpar = "mu1"),
+    prior(normal(2, 2), class = "Intercept", dpar = "mu2"),
+    prior(normal(0, 4), class = "b", dpar ="mu1"),
+    prior(normal(0, 4), class = "b", dpar ="mu2"),
+    prior(uniform(0, 0.005), class = "ndt1"),
+    prior(uniform(0, 210), class = "ndt2"),
+    prior(gamma(0.1, 0.01), class = "sd", dpar = "mu1"),
+    prior(gamma(0.1, 0.01), class = "sd", dpar = "mu2"),
+    prior(gamma(0.1, 0.01), class = "sigma1"),
+    prior(gamma(0.1, 0.01), class = "sigma2")
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+summary(msln3)
+```
+
+Results:
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(msln3, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, warning=FALSE}
+mcmc_areas(msln3, pars = c("b_mu1_AlgorithmBugspots", "b_mu2_AlgorithmBugspots"), prob = 0.95)
+eff = conditional_effects(msln3, effects = c("Algorithm"))
+eff$Algorithm
+eff
+```
+
+And Diagnostics:
+All diagnostics look good.
+```{r, message=FALSE, warning=FALSE}
+min(neff_ratio(msln3))
+max(rhat(msln3))
+plot(msln3)
+```
+
+### M1 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+msln1p = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC),
+  d,
+  family = mixture(shifted_lognormal(), shifted_lognormal()),
+  prior = c(
+    prior(normal(-2, 2), class = "Intercept", dpar = "mu1"),
+    prior(normal(2, 2), class = "Intercept", dpar = "mu2"),
+    prior(normal(0, 4), class = "b", dpar ="mu1"),
+    prior(normal(0, 4), class = "b", dpar ="mu2"),
+    prior(uniform(0, 0.005), class = "ndt1"),
+    prior(uniform(0, 210), class = "ndt2"),
+    prior(gamma(0.1, 0.01), class = "sigma1"),
+    prior(gamma(0.1, 0.01), class = "sigma2")
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE,warning=FALSE}
+pp_check(msln1p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+msln1 = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC),
+  d,
+  family = mixture(shifted_lognormal(), shifted_lognormal()),
+  prior = c(
+    prior(normal(-2, 2), class = "Intercept", dpar = "mu1"),
+    prior(normal(2, 2), class = "Intercept", dpar = "mu2"),
+    prior(normal(0, 4), class = "b", dpar ="mu1"),
+    prior(normal(0, 4), class = "b", dpar ="mu2"),
+    prior(uniform(0, 0.005), class = "ndt1"),
+    prior(uniform(0, 210), class = "ndt2"),
+    prior(gamma(0.1, 0.01), class = "sigma1"),
+    prior(gamma(0.1, 0.01), class = "sigma2")
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+summary(msln1)
+pp_check(msln1, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+### M2 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+msln2p = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC + FixCount),
+  d,
+  family = mixture(shifted_lognormal(), shifted_lognormal()),
+  prior = c(
+    prior(normal(-2, 2), class = "Intercept", dpar = "mu1"),
+    prior(normal(2, 2), class = "Intercept", dpar = "mu2"),
+    prior(normal(0, 4), class = "b", dpar ="mu1"),
+    prior(normal(0, 4), class = "b", dpar ="mu2"),
+    prior(uniform(0, 0.005), class = "ndt1"),
+    prior(uniform(0, 210), class = "ndt2"),
+    prior(gamma(0.1, 0.01), class = "sigma1"),
+    prior(gamma(0.1, 0.01), class = "sigma2")
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE,warning=FALSE}
+pp_check(msln2p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+msln2 = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC + FixCount),
+  d,
+  family = mixture(shifted_lognormal(), shifted_lognormal()),
+  prior = c(
+    prior(normal(-2, 2), class = "Intercept", dpar = "mu1"),
+    prior(normal(2, 2), class = "Intercept", dpar = "mu2"),
+    prior(normal(0, 4), class = "b", dpar ="mu1"),
+    prior(normal(0, 4), class = "b", dpar ="mu2"),
+    prior(uniform(0, 0.005), class = "ndt1"),
+    prior(uniform(0, 210), class = "ndt2"),
+    prior(gamma(0.1, 0.01), class = "sigma1"),
+    prior(gamma(0.1, 0.01), class = "sigma2")
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+summary(msln2)
+pp_check(msln2, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+### M4 {-}
+
+```{r, msln4-prior, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+msln4p = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language)),
+  d,
+  family = mixture(shifted_lognormal(), shifted_lognormal()),
+  prior = c(
+    prior(normal(-2, 2), class = "Intercept", dpar = "mu1"),
+    prior(normal(2, 2), class = "Intercept", dpar = "mu2"),
+    prior(normal(0, 4), class = "b", dpar ="mu1"),
+    prior(normal(0, 4), class = "b", dpar ="mu2"),
+    prior(uniform(0, 0.005), class = "ndt1"),
+    prior(uniform(0, 210), class = "ndt2"),
+    prior(gamma(0.1, 0.01), class = "sd", dpar = "mu1"),
+    prior(gamma(0.1, 0.01), class = "sd", dpar = "mu2"),
+    prior(gamma(0.1, 0.01), class = "sigma1"),
+    prior(gamma(0.1, 0.01), class = "sigma2")
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, msln4-pp-check, message=FALSE, warning=FALSE}
+pp_check(msln4p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, msln4-sample, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+msln4 = brm(
+  bf(Runtime ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language)),
+  d,
+  family = mixture(shifted_lognormal(), shifted_lognormal()),
+  prior = c(
+    prior(normal(-2, 2), class = "Intercept", dpar = "mu1"),
+    prior(normal(2, 2), class = "Intercept", dpar = "mu2"),
+    prior(normal(0, 4), class = "b", dpar ="mu1"),
+    prior(normal(0, 4), class = "b", dpar ="mu2"),
+    prior(uniform(0, 0.005), class = "ndt1"),
+    prior(uniform(0, 210), class = "ndt2"),
+    prior(gamma(0.1, 0.01), class = "sd", dpar = "mu1"),
+    prior(gamma(0.1, 0.01), class = "sd", dpar = "mu2"),
+    prior(gamma(0.1, 0.01), class = "sigma1"),
+    prior(gamma(0.1, 0.01), class = "sigma2")
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, msln4-summary, message=FALSE, warning=FALSE}
+summary(msln4)
+pp_check(msln4, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+### Compare {-}
+```{r, msln-compare, message=FALSE, results="hold", warning=TRUE, cache=TRUE}
+loo_msln1 = loo(msln1)
+loo_msln2 = loo(msln2, reloo=TRUE)
+loo_msln3 = loo(msln3, reloo=TRUE)
+loo_msln4 = loo(msln4, reloo=TRUE)
+loo_compare(loo_msln1, loo_msln2, loo_msln3, loo_msln4)
+```
+
+
+
+## Comparison
+```{r, all-compare, message=FALSE, warning=TRUE, cache=TRUE}
+loo_compare(loo_ln2, loo_sln2, loo_mln3, loo_msln3)
+```
+
+## Inference{.tabset .tabset-fade .tabset-pills}
+
+Results:
+
+```{r, final-result, message=FALSE, warning=FALSE}
+pp_check(msln3, nsamples = 100) + scale_x_continuous(trans='log10')
+mcmc_areas(msln3, pars = c("b_mu1_AlgorithmBugspots", "b_mu2_AlgorithmBugspots"), prob = 0.95)
+eff = conditional_effects(msln3, effects = c("Algorithm"))
+eff$Algorithm
+eff
+```
+
+And Diagnostics:
+
+```{r, final-diagnostics, message=FALSE, warning=FALSE}
+min(neff_ratio(msln3))
+max(rhat(msln3))
+plot(msln3)
+```

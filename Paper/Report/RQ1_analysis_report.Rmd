@@ -1,0 +1,2158 @@
+---
+title: "Linespots Performance Empirical Analysis"
+css: ./rmarkdown_resources/tables_format.css
+author: "Maximilian Scholz"
+output:
+  bookdown::html_document2:
+    toc: true
+    toc_float: true
+    df_print: paged
+bibliography: [./rmarkdown_resources/packages.bib]
+---
+
+
+
+```{r, echo=FALSE, message=FALSE, cache=TRUE}
+# Here, we simply create a bib file to reference all packages we are using in this script.
+knitr::write_bib(c("tidyverse", "skimr", "ggthemes", "patchwork", "ggdag", "dagitty", "brms", "loo", "bayesplot"), file = "./rmarkdown_resources/packages.bib")
+```
+
+# Setup {#setup}
+
+## Packages and Functions
+
+The code below simply cleans your environment to avoid loading unnecessary functions or variables and loads the libraries used in our script. We begin by installing and loading the required packages. For BDA, we use mainly @R-brms, whereas @R-bayesplot provides support with various plots and functions to calculate credible intervals.
+
+```{r, message=FALSE, warning=FALSE}
+rm( list = ls() )  # Cleans the environment.
+# You can install packages in case they are not installed already.
+# In case you don't have rstan installed, see:
+# https://github.com/stan-dev/rstan/wiki/RStan-Getting-Started
+# install.packages(c("tidyverse", "skimr", "ggthemes", "patchwork", "ggdag",
+#                     "dagitty", "brms", "loo", "bayesplot"))
+library(tidyverse) # For transforming and visualizing data.
+library(skimr)     # For getting data summaries
+library(ggthemes)  # Themes for ggplot
+ggplot2::theme_set(theme_tufte())
+library(patchwork) # Combining many plots into the same figure.
+
+library(ggdag)     # For DAG analysis
+library(dagitty)   # For DAG analysis
+
+library(brms)      # BDA packages. Alternatively, one can use rethinking & rstanarm.
+library(loo)       # For comparing different models' performance
+library(bayesplot) # Plotting BDA output by Gabry et al.
+bayesplot::color_scheme_set("viridis") #Uses the viridis palette on bayesplots
+```
+
+For reproducibility and efficiency we set an arbitrary seed, sampling parameters and
+the number of cores to speed up the MCMC sampling.
+
+```{r, message=FALSE, warning=FALSE}
+SAMPLES = 5000
+WARMUP = 1000
+CHAINS = 4
+SEED = 2020
+DELTA = 0.99
+TREE = 13
+set.seed(SEED)
+options(mc.cores = parallel::detectCores())
+```
+
+***
+
+# Overview of the Dataset {#data-overview .tabset .tabset-fade .tabset-pills}
+
+First we load the data and take a look at it. As this report is analyzing the performance
+differences between Bugspots and Linespots, we focus only on those variables relevant
+to runtime.
+
+```{r, message=FALSE, warning=FALSE}
+d = read_delim(
+  '../data/full_evaluation.csv',
+  delim = ",",
+  locale = locale(decimal_mark = "."),
+  col_names = TRUE,
+  col_types = cols(
+    AUCEC1 = col_double(),
+    AUCEC100 = col_double(),
+    AUCEC20 = col_double(),
+    AUCEC5 = col_double(),
+    AUROC = col_double(),
+    Algorithm = col_factor(),
+    Depth = col_double(),
+    EInspect10 = col_double(),
+    EInspect100 = col_double(),
+    EInspect200 = col_double(),
+    EInspect50 = col_double(),
+    EInspectF = col_double(),
+    EXAM = col_double(),
+    FixCount = col_double(),
+    Future = col_double(),
+    LOC = col_double(),
+    Origin = col_double(),
+    Project = col_factor(),
+    Runtime = col_double(),
+    Time = col_factor(),
+    Weight = col_factor(),
+    comit_version = col_factor(),
+    commits = col_double(),
+    language = col_factor(),
+    url = col_factor()
+  )
+)
+# There seem to be some cases where no faults were found in the pseudo future.
+# As those cases can't tell us anything, we will remove them.
+d = subset(d, d$FixCount != 0)
+d$EInspectFLong = ceiling(d$EInspectF * d$LOC)
+
+# For clarity, we only keep the variables we later use.
+d = data.frame("Algorithm" =  d$Algorithm, "LOC" = d$LOC, "FixCount" = d$FixCount,
+               "Project" = d$Project, "language" = d$language, "AUCEC1" = d$AUCEC1,
+               "AUCEC5" = d$AUCEC5, "AUROC" = d$AUROC, "EInspect10" = d$EInspect10,
+               "EInspect100" = d$EInspect100, "EInspectF" = d$EInspectFLong, "EXAM" = d$EXAM)
+```
+
+## Descriptive Statistics {-}
+
+```{r, dataset-statistics, echo=FALSE, cache=TRUE}
+skim(d)
+```
+
+## Distributions (Histograms) {-}
+
+```{r, dataset-raw-histogram, out.width="100%", fig.align="center", echo=FALSE, cache=TRUE}
+b = ggplot(d, aes(x=LOC)) +
+  geom_histogram(bins = 30)
+
+c = ggplot(d, aes(x=FixCount)) +
+  geom_histogram(bins = 30)
+
+b + c
+
+h1 = ggplot(d, aes(x=AUCEC1)) +
+  geom_histogram(bins = 30)
+
+h2 = ggplot(d, aes(x=AUCEC5)) +
+  geom_histogram(bins = 30)
+
+h3 = ggplot(d, aes(x=AUROC)) +
+  geom_histogram(bins = 30)
+
+h4 = ggplot(d, aes(x=EInspect10)) +
+  geom_histogram(bins = 30)
+
+h5 = ggplot(d, aes(x=EInspect100)) +
+  geom_histogram(bins = 30)
+
+h6 = ggplot(d, aes(x=EInspectF)) +
+  geom_histogram(bins = 30)
+
+h7 = ggplot(d, aes(x=EXAM)) +
+  geom_histogram(bins = 30)
+
+h1 + h2
+(h4 + h5) / h6
+h3 + h7
+```
+
+## Scaled Distributions (Histograms) {-}
+
+With both LOC and FixCount spanning multiple orders of magnitude, we standardize them to improve sampling performance.
+
+```{r, cache=TRUE}
+d$LOC = scale(d$LOC)
+d$FixCount = scale(d$FixCount)
+```
+
+```{r, dataset-scaled-histogram, out.width="80%", fig.align="center", echo=FALSE, cache=TRUE}
+b = ggplot(d, aes(x=LOC)) +
+  geom_histogram(bins = 30)
+
+c = ggplot(d, aes(x=FixCount)) +
+  geom_histogram(bins = 30)
+
+b + c
+
+```
+
+***
+
+# DAG Analysis {#DAG .tabset .tabset-fade .tabset-pills}
+
+Based on the the data we gathered, we built a DAG, representing the causal
+relationships as we assume them.
+In this case, the analysis is rather simple.
+We designed the experiment in such a way, that there is no incoming causal
+relationship to algorithm so we could use all parameters without confounding problems.
+
+## DAG {-}
+
+```{r, message=FALSE, warning=FALSE}
+Runtime_dag <- dagify(
+  Project ~ Language,
+  LOC ~ Project,
+  FixCount ~ Project,
+  EvaluationMetrics ~ Algorithm + Project + LOC + FixCount + Language,
+  exposure = "Algorithm",
+  outcome = "EvaluationMetrics",
+  labels = c(
+    "Project" = "Project",
+    "Language" = "Language",
+    "LOC" = "LOC",
+    "FixCount" = "Fix\nCount",
+    "Algorithm" = "Algorithm",
+    "EvaluationMetrics" = "Evaluation\nMetrics"
+  )
+)
+
+ggdag(Runtime_dag, text = FALSE, use_labels = "label", layout="circle") +
+  theme_dag()
+```
+***
+
+## Causal Paths {-}
+The graph shows that there is only a single possible causal path from 'Algorithm' to 'Evaluation Metrics', so regardless of which other predictor we add to a model, they will not add bias or confounding.
+
+```{r, message=FALSE, warning=FALSE}
+ggdag_paths(Runtime_dag,
+            text = FALSE,
+            use_labels = "label",
+            shadow = TRUE,adjust_for = c("LOC", "Project", "Language", "FixCount"),
+            layout="circle") +
+  theme_dag()
+```
+
+***
+
+## Adjustment Sets {-}
+Finally, we can test the three sets of predictors we plan on using for being
+adjustment sets.
+
+```{r, message=FALSE, results="hold", warning=FALSE, cache=TRUE}
+isAdjustmentSet(Runtime_dag, c("LOC"))
+isAdjustmentSet(Runtime_dag, c("LOC", "FixCount"))
+isAdjustmentSet(Runtime_dag, c("LOC", "FixCount", "Project"))
+isAdjustmentSet(Runtime_dag, c("LOC", "FixCount", "Project", "Language"))
+```
+
+***
+
+# BDA workflow {#bda}
+We are interested in the evaluation metrics as our outcome, `Algorithm` as our
+exposure and we control for `LOC`, `Project` as well as `language`.
+We then build generalized linear models (GLM) for different predictor combinations
+and compare them using psis-loo.
+
+For the intercept priors we used insights from past research, either our own or from others
+in the field.
+The remaining priors were chosen in such a way that the pp_check graphs show models
+allowing values outside of the data range to prevent overfitting.
+
+## AUROC Models {.tabset .tabset-fade .tabset-pills}
+For the area under the ROC curve we use a beta likelihood, as it represents the
+ratio of the union square that is under the ROC curve.
+
+While we do not have past experience with AUROC values for these algorithms,
+we know from our past work that even in the early parts of the result lists
+the precision and recall are very low for both.
+To represent this we set the intercept prior to 0.1 or roughly -2 on the logit
+scale.
+
+As we presume most of the values to be small and somewhat concentrated,
+we expect phi to be a little higher.
+We put a wide prior on phi as we are not certain where exactly it will lie.
+
+### M3 {-}
+
+$$
+\begin{split}
+    \mathcal{M}_3: \mathrm{AUROC_i} \thicksim &\ \mathrm{Beta}(\mu_i, \phi) \\
+    \mathrm{logit}(\mu_i) = &\ \alpha + \beta_{A}  \mathrm{Algorithm}_i + \beta_{L} \mathrm{LOC}_i + \beta_F\mathrm{FixCount}_i + \alpha_{Project[i]} \\
+    \alpha \thicksim &\ \mathrm{Normal(-2, 1)} \\
+    \beta_{A}, \beta_{L}, \beta_F \thicksim &\ \mathrm{Normal(0, 0.25)} \\
+    \alpha_p \thicksim &\ \mathrm{Weibull}(2, 1)\ \ \ \mathrm{for\ }p = 1..32 \\
+    \mathrm{log}(\phi) \thicksim &\ \mathrm{Normal(50, 20)}
+\end{split}
+$$
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mauroc3p = brm(
+  formula = AUROC ~ 1 + Algorithm + LOC + FixCount + (1 | Project),
+  data = d,
+  family = Beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(normal(50, 20), class=phi)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mauroc3p, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mauroc3= brm(
+  formula = AUROC ~ 1 + Algorithm + LOC + FixCount + (1 | Project),
+  data = d,
+  family = Beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(normal(50, 20), class=phi)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+The comparison shows equal loo performance for M3 and M4. As M3 is the simpler model, we choose it as our candidate model.
+
+Results:
+```{r, message=FALSE, warning=FALSE}
+summary(mauroc3)
+```
+
+The posterior predictive check shows a good fit.
+```{r, message=FALSE, warning=FALSE}
+pp_check(mauroc3, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+On the logit scale the effect of `Bugspots` is well negative with no 0 overlap at all.
+On the outcome scale, there is some overlap between the two algorithms, but the
+respective means are outside of the 95% intervals shown and there is a clear
+tendency for `Linespots` to have higher AUROC values than `Bugspots`
+
+```{r, auroc-results, message=FALSE, results="holt", warning=FALSE, cache=TRUE}
+mcmc_areas(mauroc3, pars = c("b_AlgorithmBugspots"), prob = 0.95) + ggtitle("AUROC Posterior Distribution\n With 95% intervals")
+eff = conditional_effects(mauroc3, effects = c("Algorithm"))
+eff$Algorithm
+eff
+```
+
+And Diagnostics:
+All diagnostics look well.
+```{r, message=FALSE, warning=FALSE}
+min(neff_ratio(mauroc3))
+max(rhat(mauroc3))
+plot(mauroc3)
+```
+
+### M1 {-}
+
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mauroc1p = brm(
+  formula = AUROC ~ 1 + Algorithm + LOC,
+  data = d,
+  family = Beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(50, 20), class=phi)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mauroc1p, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mauroc1= brm(
+  formula = AUROC ~ 1 + Algorithm + LOC,
+  data = d,
+  family = Beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(50, 20), class=phi)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+```{r, message=FALSE, warning=FALSE}
+pp_check(mauroc1, nsamples = 100) + scale_y_continuous(trans='sqrt')
+summary(mauroc1)
+```
+
+### M2 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mauroc2p = brm(
+  formula = AUROC ~ 1 + Algorithm + LOC + FixCount,
+  data = d,
+  family = Beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(50, 20), class=phi)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mauroc2p, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mauroc2= brm(
+  formula = AUROC ~ 1 + Algorithm + LOC + FixCount,
+  data = d,
+  family = Beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(50, 20), class=phi)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mauroc2, nsamples = 100) + scale_y_continuous(trans='sqrt')
+summary(mauroc2)
+```
+
+### M4 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mauroc4p = brm(
+  formula = AUROC ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language),
+  data = d,
+  family = Beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(normal(50, 20), class=phi)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mauroc4p, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mauroc4= brm(
+  formula = AUROC ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language),
+  data = d,
+  family = Beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(normal(50, 20), class=phi)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+summary(mauroc4)
+pp_check(mauroc4, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+### Comparison {-}
+
+Based on using a 95% z score, M3 and M4 perform equally well. As M3 is the simpler model, we use it as our candidate model.
+```{r, message=FALSE, warning=FALSE}
+loo_mauroc1 = loo(mauroc1)
+loo_mauroc2 = loo(mauroc2)
+loo_mauroc3 = loo(mauroc3)
+loo_mauroc4 = loo(mauroc4)
+loo_compare(loo_mauroc1, loo_mauroc2, loo_mauroc3, loo_mauroc4)
+```
+
+## EXAM Models {.tabset .tabset-fade .tabset-pills}
+For the EXAM score we again use a beta likelihood, as it represents the ratio of LOC one
+has to inspect to find a fault, averaged across all faults.
+
+In our past work the mean EXAM value was around 0.226 or around -1 on the logit scale.
+
+As we presume most of the values to be small and somewhat concentrated, we expect phi to be a little higher. We put a wide prior on phi as we are not certain where exactly it will lie.
+
+
+### M3 {-}
+$$
+\begin{split}
+    \mathcal{M}_3: \mathrm{EXAM_i} \thicksim &\ \mathrm{Beta}(\mu_i, \phi) \\
+    \mathrm{logit}(\mu_i) = &\ \alpha + \beta_{A}  \mathrm{Algorithm}_i + \beta_{L} \mathrm{LOC}_i + \beta_F \mathrm{FixCount}_i + \alpha_{Project[i]}\\
+    \alpha \thicksim &\ \mathrm{Normal(-1, 1)} \\
+    \beta_{A}, \beta_{L}, \beta_F \thicksim &\ \mathrm{Normal(0, 0.15)} \\
+    \alpha_p \thicksim &\ \mathrm{Weibull}(2, 1)\ \ \ \mathrm{for}\ p = 1..32\\
+    \mathrm{log}(\phi) \thicksim &\ \mathrm{Normal(50, 20)}
+\end{split}
+$$
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mexam3p = brm(
+  formula = EXAM ~ 1 + Algorithm + LOC + FixCount + (1 | Project),
+  data = d,
+  family = Beta(),
+  prior = c(
+    prior(normal(-1, 1), class=Intercept),
+    prior(normal(0, 0.15), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(normal(50, 20), class=phi)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mexam3p, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mexam3= brm(
+  formula = EXAM ~ 1 + Algorithm + LOC + FixCount + (1 | Project),
+  data = d,
+  family = Beta(),
+  prior = c(
+    prior(normal(-1, 1), class=Intercept),
+    prior(normal(0, 0.15), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(normal(50, 20), class=phi)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+Results:
+
+```{r, message=FALSE, warning=FALSE}
+summary(mexam3)
+```
+
+The posterior predictive check shows a good overall fit.
+```{r, message=FALSE, warning=FALSE}
+pp_check(mexam3, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+On the logit scale the effect of `Bugspots` is well positive with no 0 overlap.
+On the outcome scale, there is some overlap between the two algorithms, but the
+respective means are outside of the 95% intervals shown and there is a clear
+tendency for `Linespots` to have lower EXAM values than `Bugspots`
+
+
+```{r, exam-results, message=FALSE, warning=FALSE}
+mcmc_areas(mexam3, pars = c("b_AlgorithmBugspots"), prob = 0.95) + ggtitle("EXAM Posterior Distribution\n With 95% intervals")
+eff = conditional_effects(mexam3, effects = c("Algorithm"))
+eff$Algorithm
+eff
+```
+
+And Diagnostics:
+All diagnostics look good.
+```{r, message=FALSE, warning=FALSE}
+
+min(neff_ratio(mexam3))
+max(rhat(mexam3))
+plot(mexam3)
+
+```
+
+
+### M1 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mexam1p = brm(
+  formula = EXAM ~ 1 + Algorithm + LOC,
+  data = d,
+  family = Beta(),
+  prior = c(
+    prior(normal(-1, 1), class=Intercept),
+    prior(normal(0, 0.15), class=b),
+    prior(normal(50, 20), class=phi)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mexam1p, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mexam1 = brm(
+  formula = EXAM ~ 1 + Algorithm + LOC,
+  data = d,
+  family = Beta(),
+  prior = c(
+    prior(normal(-1, 1), class=Intercept),
+    prior(normal(0, 0.15), class=b),
+    prior(normal(50, 20), class=phi)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mexam1, nsamples = 100) + scale_y_continuous(trans='sqrt')
+summary(mexam1)
+```
+
+### M2 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mexam2p = brm(
+  formula = EXAM ~ 1 + Algorithm + LOC + FixCount,
+  data = d,
+  family = Beta(),
+  prior = c(
+    prior(normal(-1, 1), class=Intercept),
+    prior(normal(0, 0.15), class=b),
+    prior(normal(50, 20), class=phi)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mexam2p, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mexam2= brm(
+  formula = EXAM ~ 1 + Algorithm + LOC + FixCount,
+  data = d,
+  family = Beta(),
+  prior = c(
+    prior(normal(-1, 1), class=Intercept),
+    prior(normal(0, 0.15), class=b),
+    prior(normal(50, 20), class=phi)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mexam2, nsamples = 100) + scale_y_continuous(trans='sqrt')
+summary(mexam2)
+```
+
+### M4 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mexam4p = brm(
+  formula = EXAM ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language),
+  data = d,
+  family = Beta(),
+  prior = c(
+    prior(normal(-1, 1), class=Intercept),
+    prior(normal(0, 0.15), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(normal(50, 20), class=phi)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mexam4p, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mexam4= brm(
+  formula = EXAM ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language),
+  data = d,
+  family = Beta(),
+  prior = c(
+    prior(normal(-1, 1), class=Intercept),
+    prior(normal(0, 0.15), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(normal(50, 20), class=phi)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+```{r, message=FALSE, warning=FALSE}
+pp_check(mexam4, nsamples = 100) + scale_y_continuous(trans='sqrt')
+summary(mexam4)
+```
+
+
+### Comparison {-}
+
+Based on using a 95% z score, M3 and M4 perform equally well.
+As M3 is the simpler model, we use it as our candidate model.
+
+```{r, message=FALSE, warning=FALSE}
+loo_mauroc1 = loo(mexam1)
+loo_mexam2 = loo(mexam2)
+loo_mexam3 = loo(mexam3)
+loo_mexam4 = loo(mexam4)
+loo_compare(loo_mauroc1, loo_mauroc2, loo_mauroc3, loo_mauroc4)
+```
+
+## EInspectF Models {.tabset .tabset-fade .tabset-pills}
+For the EInspectF we use a negative binomial likelihood, as it is a count outcome
+We also considered a poisson, but the difference in mean and variance makes the negative binomial the better candidate.
+
+We do not have past experience for this value but based on the results of zouEmpiricalStudyFault2019 we use a prior mean of 500 LOC or roughly 6 on the log scale.
+
+### M3 {-}
+$$
+\begin{split}
+    \mathcal{M}_3: \mathrm{EInspectF_i} \thicksim &\ \mathrm{NegBinom}(\mu_i, \phi) \\
+    \mathrm{logit}(\mu_i) = &\ \alpha + \beta_{A}  \mathrm{Algorithm}_i + \beta_{L} \mathrm{LOC}_i + \beta_F \mathrm{FixCount}_i + \alpha_{Project[i]} \\
+    \alpha \thicksim &\ \mathrm{Normal(-3, 0.5)} \\
+    \beta_{A}, \beta_{L}, \beta_F \thicksim &\ \mathrm{Normal(0, 0.3)} \\
+    \alpha_p \thicksim &\ \mathrm{Weibull}(2, 1)\ \ \ \mathrm{for}\ p = 1..32\\
+    \phi \thicksim &\ \mathrm{Weibull}(2, 1) \\
+\end{split}
+$$
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspectF3p = brm(
+  formula = EInspectF ~ 1 + Algorithm + LOC + FixCount + (1 | Project),
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(6, 1), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspectF3p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspectF3 = brm(
+  formula = EInspectF ~ 1 + Algorithm + LOC + FixCount + (1 | Project),
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(6, 1), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+Results:
+```{r, message=FALSE, warning=FALSE}
+summary(mEInspectF3)
+```
+
+The comparison shows very similar LOO performance for M3 and M4.
+We chose M3 as our final model as it shows very good sampling behavior and
+because it is the smaller model of the two.
+
+
+The posterior predictive check shows a good overall fit.
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspectF3, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+
+The 95% interval of the effect of 'Bugspots' on the logit scale is completely negative, however there is some overlap with 0 further in the tail.
+On the outcome scale, the overlap is big between the two algorithms. While the means and lower bounds are close, the upper bound for `Linespots` is higher than for `Bugspots`
+```{r, einspectf-results, message=FALSE, warning=FALSE}
+mcmc_areas(mEInspectF3, pars = c("b_AlgorithmBugspots"), prob = 0.95) + ggtitle("EInspectF Posterior Distribution\n With 95% intervals")
+eff = conditional_effects(mEInspectF3, effects = c("Algorithm"))
+eff$Algorithm
+eff
+```
+
+And Diagnostics:
+All diagnostics look good.
+```{r, message=FALSE, warning=FALSE}
+min(neff_ratio(mEInspectF3))
+max(rhat(mEInspectF3))
+plot(mEInspectF3)
+```
+
+### M1 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspectF1p = brm(
+  formula = EInspectF ~ 1 + Algorithm + LOC,
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(6, 1), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspectF1p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspectF1 = brm(
+  formula = EInspectF ~ 1 + Algorithm + LOC,
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(6, 1), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspectF1, nsamples = 100) + scale_x_continuous(trans='log10')
+summary(mEInspectF1)
+```
+### M2 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspectF2p = brm(
+  formula = EInspectF ~ 1 + Algorithm + LOC + FixCount,
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(6, 1), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspectF2p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspectF2 = brm(
+  formula = EInspectF ~ 1 + Algorithm + LOC +  FixCount,
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(6, 1), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspectF2, nsamples = 100) + scale_x_continuous(trans='log10')
+summary(mEInspectF2)
+```
+
+### M4 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspectF4p = brm(
+  formula = EInspectF ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language),
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(6, 1), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspectF4p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspectF4= brm(
+  formula = EInspectF ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language),
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(6, 1), class=Intercept),
+    prior(normal(0, 1), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspectF4, nsamples = 100) + scale_x_continuous(trans='log10')
+summary(mEInspectF4)
+```
+
+
+### Comparison {-}
+Based on using a 95% z score, M3 and M4 perform equally well.
+As M3 is the simpler model, we use it as our candidate model.
+```{r, message=FALSE, warning=FALSE}
+loo_mEInspectF1 = loo(mEInspectF1)
+loo_mEInspectF2 = loo(mEInspectF2)
+loo_mEInspectF3 = loo(mEInspectF3)
+loo_mEInspectF4 = loo(mEInspectF4)
+loo_compare(loo_mEInspectF1, loo_mEInspectF2, loo_mEInspectF3, loo_mEInspectF4)
+```
+
+
+## EInspect10 Models {.tabset .tabset-fade .tabset-pills}
+For the EInspect10 we use a negative binomial likelihood, as it is a count outcome.
+We also considered a poisson, but the difference in mean and variance makes the negative binomial the better candidate.
+
+We do not have experience with both algorithms for this metric, but zouEmpiricalStudyFault2019 gives an EInspect value of 0 for Bugspots.
+Based on that we set a low prior of 0.01 or roughly -4 on the logit scale.
+
+
+### M3 {-}
+$$
+\begin{split}
+    \mathcal{M}_3: \mathrm{EInspect10_i} \thicksim &\ \mathrm{NegBinom}(\mu_i, \phi) \\
+    \mathrm{logit}(\mu_i) = &\ \alpha + \beta_{A}  \mathrm{Algorithm}_i + \beta_{L} \mathrm{LOC}_i + \beta_F \mathrm{FixCount}_i + \alpha_{Project[i]} \\
+    \alpha \thicksim &\ \mathrm{Normal(-3, 0.5)} \\
+    \beta_{A}, \beta_{L}, \beta_F \thicksim &\ \mathrm{Normal(0, 0.3)} \\
+    \alpha_p \thicksim &\ \mathrm{Weibull}(2, 1)\ \ \ \mathrm{for}\ p = 1..32\\
+    \phi \thicksim &\ \mathrm{Weibull}(2, 1) \\
+\end{split}
+$$
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspect103p = brm(
+  formula = EInspect10 ~ 1 + Algorithm + LOC + FixCount + (1 | Project),
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(-4, 0.5), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspect103p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspect103 = brm(
+  formula = EInspect10 ~ 1 + Algorithm + LOC + FixCount + (1 | Project),
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(-4, 0.5), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+Results:
+```{r, message=FALSE, warning=FALSE}
+summary(mEInspect103)
+```
+
+The comparison shows equal LOO performance for M3 and M4.
+We chose M3 as our candidate model, as it is the smaller one.
+
+The posterior predictive check shows that the model fits the data well with only a slightly longer tail.
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspect103, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+The 95% interval of the effect of 'Bugspots' on the logit scale is completely negative, however there is overlap with 0 in the tail.
+On the outcome scale, the overlap is big between the two algorithms. While the means and lower bounds are close, the upper bound for `Linespots` is higher than for `Bugspots`
+```{r, einspect10-results, message=FALSE, warning=FALSE}
+mcmc_areas(mEInspect103, pars = c("b_AlgorithmBugspots"), prob = 0.95) + ggtitle("EInspect10 Posterior Distribution\n With 95% intervals")
+eff = conditional_effects(mEInspect103, effects = c("Algorithm"))
+eff$Algorithm
+eff
+```
+
+And Diagnostics:
+All diagnostics look good.
+```{r, message=FALSE, warning=FALSE}
+min(neff_ratio(mEInspect103))
+max(rhat(mEInspect103))
+plot(mEInspect103)
+```
+
+
+### M1 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspect101p = brm(
+  formula = EInspect10 ~ 1 + Algorithm + LOC,
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(-4, 0.5), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspect101p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspect101 = brm(
+  formula = EInspect10 ~ 1 + Algorithm + LOC,
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(-4, 0.5), class=Intercept),
+    prior(normal(0, 0.5), class=b),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspect101, nsamples = 100) + scale_x_continuous(trans='log10')
+summary(mEInspect101)
+```
+
+### M2 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspect102p = brm(
+  formula = EInspect10 ~ 1 + Algorithm + LOC + FixCount,
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(-4, 0.5), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspect102p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspect102 = brm(
+  formula = EInspect10 ~ 1 + Algorithm + LOC + FixCount,
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(-4, 0.5), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspect102, nsamples = 100) + scale_x_continuous(trans='log10')
+summary(mEInspect102)
+```
+
+### M4 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspect104p = brm(
+  formula = EInspect10 ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language),
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(-4, 0.5), class=Intercept),
+    prior(normal(0, 0.3), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspect104p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspect104= brm(
+  formula = EInspect10 ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language),
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(-4, 0.5), class=Intercept),
+    prior(normal(0, 0.3), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspect104, nsamples = 100) + scale_x_continuous(trans='log10')
+summary(mEInspect104)
+```
+
+
+### Comparison {-}
+Based on using a 95% z score, M3 and M4 perform equally well.
+As M3 is the simpler model, we use it as our candidate model.
+```{r, message=FALSE, warning=FALSE}
+loo_mEInspect101 = loo(mEInspect101)
+loo_mEInspect102 = loo(mEInspect102)
+loo_mEInspect103 = loo(mEInspect103)
+loo_mEInspect104 = loo(mEInspect104)
+loo_compare(loo_mEInspect101, loo_mEInspect102, loo_mEInspect103, loo_mEInspect104)
+```
+
+
+
+## EInspect100 Models {.tabset .tabset-fade .tabset-pills}
+For the EInspect100 we use a negative binomial likelihood, as it is a count outcome.
+We also considered a poisson, but the difference in mean and variance makes the negative binomial the better candidate.
+
+We do not have past experience with this metric so we will use the prior for the EInspect10 models and multiply it by 5. We do not multiply by 10 as we expect more faults but based on the kind of ranking, we do not expect the growth to be linear.
+An intercept mean of 0.05 translates to -3 on the logit scale.
+
+### M3 {-}
+$$
+\begin{split}
+    \mathcal{M}_3: \mathrm{EInspect100_i} \thicksim &\ \mathrm{NegBinom}(\mu_i, \phi) \\
+    \mathrm{logit}(\mu_i) = &\ \alpha + \beta_{A}  \mathrm{Algorithm}_i + \beta_{L} \mathrm{LOC}_i + \beta_F \mathrm{FixCount}_i + \alpha_{Project[i]} \\
+    \alpha \thicksim &\ \mathrm{Normal(-3, 0.5)} \\
+    \beta_{A}, \beta_{L}, \beta_F \thicksim &\ \mathrm{Normal(0, 0.3)} \\
+    \alpha_p \thicksim &\ \mathrm{Weibull}(2, 1)\ \ \ \mathrm{for}\ p = 1..32\\
+    \phi \thicksim &\ \mathrm{Weibull}(2, 1) \\
+\end{split}
+$$
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspect1003p = brm(
+  formula = EInspect100 ~ 1 + Algorithm + LOC + FixCount + (1 | Project),
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(-3, 0.5), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspect1003p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspect1003 = brm(
+  formula = EInspect100 ~ 1 + Algorithm + LOC + FixCount + (1 | Project),
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(-3, 0.5), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+Results:
+```{r, message=FALSE, warning=FALSE}
+summary(mEInspect1003)
+```
+
+The comparison shows very similar LOO performance for M3 and M4.
+We chose M3 as our final model as it shows very good sampling behavior and
+because it is the smaller model of the two.
+
+
+The posterior predictive check shows a good overall fit.
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspect1003, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+
+The 95% interval of the effect of 'Bugspots' on the logit scale is completely negative, however there is some overlap with 0 further in the tail.
+On the outcome scale, the overlap is big between the two algorithms. While the means and lower bounds are close, the upper bound for `Linespots` is higher than for `Bugspots`
+```{r, einspect100-results, message=FALSE, warning=FALSE}
+mcmc_areas(mEInspect1003, pars = c("b_AlgorithmBugspots"), prob = 0.95) + ggtitle("EInspect100 Posterior Distribution\n With 95% intervals")
+eff = conditional_effects(mEInspect1003, effects = c("Algorithm"))
+eff$Algorithm
+eff
+```
+
+And Diagnostics:
+All diagnostics look good.
+```{r, message=FALSE, warning=FALSE}
+min(neff_ratio(mEInspect1003))
+max(rhat(mEInspect1003))
+plot(mEInspect1003)
+```
+
+
+### M1 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspect1001p = brm(
+  formula = EInspect100 ~ 1 + Algorithm + LOC,
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(-3, 0.5), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspect1001p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspect1001 = brm(
+  formula = EInspect100 ~ 1 + Algorithm + LOC,
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(-3, 0.5), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspect1001, nsamples = 100) + scale_x_continuous(trans='log10')
+summary(mEInspect1001)
+```
+
+### M2 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspect1002p = brm(
+  formula = EInspect100 ~ 1 + Algorithm + LOC + FixCount,
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(-3, 0.5), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspect1002p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspect1002 = brm(
+  formula = EInspect100 ~ 1 + Algorithm + LOC + FixCount,
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(-3, 0.5), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspect1002, nsamples = 100) + scale_x_continuous(trans='log10')
+summary(mEInspect1002)
+```
+
+### M4 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspect1004p = brm(
+  formula = EInspect100 ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language),
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(-3, 0.5), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspect1004p, nsamples = 100) + scale_x_continuous(trans='log10')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+mEInspect1004= brm(
+  formula = EInspect100 ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language),
+  data = d,
+  family = negbinomial(),
+  prior = c(
+    prior(normal(-3, 0.5), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(weibull(2, 1), class=sd),
+    prior(weibull(2, 1), class=shape)
+  ),
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(mEInspect1004, nsamples = 100) + scale_x_continuous(trans='log10')
+summary(mEInspect1004)
+```
+
+
+### Comparison {-}
+Based on using a 95% z score, M3 and M4 perform equally well. As M3 is the simpler model, we use it as our candidate model.
+```{r, message=FALSE, warning=FALSE}
+loo_mEInspect1001 = loo(mEInspect1001)
+loo_mEInspect1002 = loo(mEInspect1002)
+loo_mEInspect1003 = loo(mEInspect1003)
+loo_mEInspect1004 = loo(mEInspect1004)
+loo_compare(loo_mEInspect1001, loo_mEInspect1002, loo_mEInspect1003, loo_mEInspect1004)
+
+```
+
+## AUCEC1 Models {.tabset .tabset-fade .tabset-pills}
+For the area under the cost-effectiveness curve at 0.01 LOC we use a zero-inflated beta likelihood. The AUCEC values are all normalized to their respective optimal value which puts them between 0 and 1. However, the low cut-off leads to some 0 results, which we need the zero-inflation for.
+
+We do not have past experience with this metric but based on arisholmSystematicComprehensiveInvestigation2010 we use an intercept prior of 0.1 or roughly -2 on the logit scale.
+
+As we presume most of the values to be small and somewhat concentrated, we expect phi to be a little higher. We put a wide prior on phi as we are not certain where exactly it will lie.
+
+### M2 {-}
+$$
+\begin{split}
+    \mathcal{M}_4: \mathrm{AUCEC1_i} \thicksim &\ \mathrm{ZIBeta}(\mu_i, \phi, \lambda_i) \\
+    \mathrm{logit}(\mu_i) = &\ \alpha + \beta_{A}  \mathrm{Algorithm}_i + \beta_{L} \mathrm{LOC}_i + \beta_F \mathrm{FixCount}_i \\
+    \mathrm{logit}(\lambda)_i = &\ \beta_{ziA}  \mathrm{Algorithm}_i + \alpha_{ziProject[i]} \\
+    \alpha \thicksim &\ \mathrm{Normal(0, 1)} \\
+    \beta_{A}, \beta_{L}, \beta_F \thicksim &\ \mathrm{Normal(0, 0.25)} \\
+    \beta_{ziA} \thicksim &\ Normal(0, 2)\\
+    \alpha_{zip} \thicksim &\ \mathrm{Logistic}(0, 1)\ \ \ \mathrm{for}\ zip = 1..32 \\
+    \mathrm{log}(\phi) \thicksim &\ \mathrm{Normal(50, 20)} \\
+\end{split}
+$$
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+maucec12p = brm(
+  bf(AUCEC1 ~ 1 + Algorithm + LOC + FixCount, zi ~ Algorithm + (1 | Project)),
+  data = d,
+  family = zero_inflated_beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(0, 2), class=b, dpar="zi"),
+    prior(normal(50, 20), class=phi)
+
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(maucec12p, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+maucec12 = brm(
+  bf(AUCEC1 ~ 1 + Algorithm + LOC + FixCount + (1 | Project), zi ~ Algorithm + (1 | Project)),
+  data = d,
+  family = zero_inflated_beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(0, 2), class=b, dpar="zi"),
+    prior(normal(50, 20), class=phi)
+
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+Results:
+```{r, message=FALSE, warning=FALSE}
+summary(maucec12)
+```
+
+The posterior predictive check shows a good fit.
+```{r, message=FALSE, warning=FALSE}
+pp_check(maucec12, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+The effect of `Bugspots` on the logit scale is entirely negative with no 0 overlap.
+On the outcome scale, there is no overlap between the two algorithms with `Linespots` consistently having higher values than `Bugspots`
+```{r, aucec1-results, message=FALSE, warning=FALSE}
+mcmc_areas(maucec12, pars = c("b_AlgorithmBugspots"), prob = 0.95) + ggtitle("AUCEC1 Posterior Distribution\n With 95% intervals")
+eff = conditional_effects(maucec12, effects = c("Algorithm"))
+eff$Algorithm
+eff
+```
+
+And Diagnostics:
+All diagnostics look good.
+```{r, message=FALSE, warning=FALSE}
+min(neff_ratio(maucec12))
+max(rhat(maucec12))
+plot(maucec12)
+```
+
+### M1 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+maucec11p = brm(
+  bf(AUCEC1 ~ 1 + Algorithm + LOC, zi ~ Algorithm + (1 | Project)),
+  data = d,
+  family = zero_inflated_beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(0, 2), class=b, dpar="zi"),
+    prior(normal(50, 20), class=phi)
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(maucec11p, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+maucec11 = brm(
+  bf(AUCEC1 ~ 1 + Algorithm + LOC, zi ~ Algorithm + (1 | Project)),
+  data = d,
+  family = zero_inflated_beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(0, 2), class=b, dpar="zi"),
+    prior(normal(50, 20), class=phi)
+
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(maucec11, nsamples = 100) + scale_y_continuous(trans='sqrt')
+summary(maucec11)
+```
+
+
+
+### M3 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+maucec13p = brm(
+  bf(AUCEC1 ~ 1 + Algorithm + LOC + FixCount + (1 | Project), zi ~ Algorithm + (1 | Project)),
+  data = d,
+  family = zero_inflated_beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(0, 2), class=b, dpar="zi"),
+    prior(weibull(2, 1), class=sd),
+    prior(normal(50, 20), class=phi)
+
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(maucec13p, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+maucec13 = brm(
+  bf(AUCEC1 ~ 1 + Algorithm + LOC + FixCount + (1 | Project), zi ~ Algorithm + (1 | Project)),
+  data = d,
+  family = zero_inflated_beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(0, 2), class=b, dpar="zi"),
+    prior(weibull(2, 1), class=sd),
+    prior(normal(50, 20), class=phi)
+
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(maucec13, nsamples = 100) + scale_y_continuous(trans='sqrt')
+summary(maucec13)
+```
+
+### M4 {-}
+
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+maucec14p = brm(
+  bf(AUCEC1 ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language), zi ~ Algorithm + (1 | Project)),
+  data = d,
+  family = zero_inflated_beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(0, 2), class=b, dpar="zi"),
+    prior(weibull(2, 1), class=sd),
+    prior(normal(50, 20), class=phi)
+
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(maucec14p, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+maucec14 = brm(
+  bf(AUCEC1 ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language), zi ~ Algorithm + (1 | Project)),
+  data = d,
+  family = zero_inflated_beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(0, 2), class=b, dpar="zi"),
+    prior(weibull(2, 1), class=sd),
+    prior(normal(50, 20), class=phi)
+
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(maucec14, nsamples = 100) + scale_y_continuous(trans='sqrt')
+summary(maucec14)
+```
+
+
+### Comparison {-}
+Based on using a 95% z score, M3 and M4 perform equally well. As M3 is the simpler model, we use it as our candidate model.
+```{r, message=FALSE, warning=FALSE}
+loo_maucec11 = loo(maucec11)
+loo_maucec12 = loo(maucec12)
+loo_maucec13 = loo(maucec13)
+loo_maucec14 = loo(maucec14)
+loo_compare(loo_maucec11, loo_maucec12, loo_maucec13, loo_maucec14)
+
+```
+
+
+
+
+## AUCEC5 Models {.tabset .tabset-fade .tabset-pills}
+For the area under the cost-effectiveness curve at 0.05 LOC we use a zero-inflated beta likelihood. The AUCEC values are all normalized to their respective optimal value which puts them between 0 and 1. However, the low cut-off leads to some 0 results, which we need the zero-inflation for.
+
+We do not have past experience with this metric but based on arisholmSystematicComprehensiveInvestigation2010 we use an intercept prior of 0.1 or roughly -2 on the logit scale.
+
+As we presume most of the values to be small and somewhat concentrated, we expect phi to be a little higher. We put a wide prior on phi as we are not certain where exactly it will lie.
+
+
+### M2 {-}
+$$
+\begin{split}
+    \mathcal{M}_2: \mathrm{AUCEC1_i} \thicksim &\ \mathrm{ZIBeta}(\mu_i, \phi, \lambda_i) \\
+    \mathrm{logit}(\mu_i) = &\ \alpha + \beta_{A}  \mathrm{Algorithm}_i + \beta_{L} \mathrm{LOC}_i + \beta_F \mathrm{FixCount}_i\\
+    \mathrm{logit}(\lambda)_i = &\ \beta_{ziA}  \mathrm{Algorithm}_i + \alpha_{ziProject[i]} \\
+    \alpha \thicksim &\ \mathrm{Normal(0, 1)} \\
+    \beta_{A}, \beta_{L}, \beta_F \thicksim &\ \mathrm{Normal(0, 0.25)} \\
+    \beta_{ziA} \thicksim &\ Normal(0, 2)\\
+    \alpha_{zip} \thicksim &\ \mathrm{Logistic}(0, 1)\ \ \ \mathrm{for}\ zip = 1..32 \\
+    \mathrm{log}(\phi) \thicksim &\ \mathrm{Normal}(50, 20) \\
+\end{split}
+$$
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+maucec52p = brm(
+  bf(AUCEC5 ~ 1 + Algorithm + LOC + FixCount, zi ~ Algorithm + (1 | Project)),
+  data = d,
+  family = zero_inflated_beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(0, 2), class=b, dpar="zi"),
+    prior(normal(50, 20), class=phi)
+
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(maucec52p, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+maucec52 = brm(
+  bf(AUCEC5 ~ 1 + Algorithm + LOC + FixCount + (1 | Project), zi ~ Algorithm + (1 | Project)),
+  data = d,
+  family = zero_inflated_beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(0, 2), class=b, dpar="zi"),
+    prior(normal(50, 20), class=phi)
+
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+Results:
+```{r, message=FALSE, warning=FALSE}
+summary(maucec52)
+```
+
+The posterior predictive check shows a good fit.
+```{r, message=FALSE, warning=FALSE}
+pp_check(maucec52, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+The effect of `Bugspots` on the logit scale is entirely negative with no 0 overlap.
+On the outcome scale, there is no overlap between the two algorithms with `Linespots` consistently having higher values than `Bugspots`
+```{r, aucec5-results, message=FALSE, warning=FALSE}
+mcmc_areas(maucec52, pars = c("b_AlgorithmBugspots"), prob = 0.95) + ggtitle("AUCEC5 Posterior Distribution\n With 95% intervals")
+eff = conditional_effects(maucec52, effects = c("Algorithm"))
+eff$Algorithm
+eff
+```
+
+And Diagnostics:
+All diagnostics look good.
+```{r, message=FALSE, warning=FALSE}
+min(neff_ratio(maucec52))
+max(rhat(maucec52))
+plot(maucec52)
+```
+
+
+### M1 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+maucec51p = brm(
+  bf(AUCEC5 ~ 1 + Algorithm + LOC, zi ~ Algorithm + (1 | Project)),
+  data = d,
+  family = zero_inflated_beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(0, 2), class=b, dpar="zi"),
+    prior(normal(50, 20), class=phi)
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(maucec51p, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+maucec51 = brm(
+  bf(AUCEC5 ~ 1 + Algorithm + LOC, zi ~ Algorithm + (1 | Project)),
+  data = d,
+  family = zero_inflated_beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(0, 2), class=b, dpar="zi"),
+    prior(normal(50, 20), class=phi)
+
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(maucec51, nsamples = 100) + scale_y_continuous(trans='sqrt')
+summary(maucec51)
+```
+
+### M3 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+maucec53p = brm(
+  bf(AUCEC5 ~ 1 + Algorithm + LOC + FixCount + (1 | Project), zi ~ Algorithm + (1 | Project)),
+  data = d,
+  family = zero_inflated_beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(0, 2), class=b, dpar="zi"),
+    prior(weibull(2, 1), class=sd),
+    prior(normal(50, 20), class=phi)
+
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(maucec53p, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+maucec53 = brm(
+  bf(AUCEC5 ~ 1 + Algorithm + LOC + FixCount + (1 | Project), zi ~ Algorithm + (1 | Project)),
+  data = d,
+  family = zero_inflated_beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(0, 2), class=b, dpar="zi"),
+    prior(weibull(2, 1), class=sd),
+    prior(normal(50, 20), class=phi)
+
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(maucec53, nsamples = 100) + scale_y_continuous(trans='sqrt')
+summary(maucec53)
+```
+
+### M4 {-}
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+maucec54p = brm(
+  bf(AUCEC5 ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language), zi ~ Algorithm + (1 | Project)),
+  data = d,
+  family = zero_inflated_beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(0, 2), class=b, dpar="zi"),
+    prior(weibull(2, 1), class=sd),
+    prior(normal(50, 20), class=phi)
+
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = "only",
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(maucec54p, nsamples = 100) + scale_y_continuous(trans='sqrt')
+```
+
+```{r, message=FALSE, results="hide", warning=FALSE, cache=TRUE}
+maucec54 = brm(
+  bf(AUCEC5 ~ 1 + Algorithm + LOC + FixCount + (1 | Project) + (1 | language), zi ~ Algorithm + (1 | Project)),
+  data = d,
+  family = zero_inflated_beta(),
+  prior = c(
+    prior(normal(-2, 1), class=Intercept),
+    prior(normal(0, 0.25), class=b),
+    prior(normal(0, 2), class=b, dpar="zi"),
+    prior(weibull(2, 1), class=sd),
+    prior(normal(50, 20), class=phi)
+
+  ),
+  init = 0,
+  iter = SAMPLES,
+  warmup = WARMUP,
+  chains = CHAINS,
+  cores = parallel::detectCores(),
+  sample_prior = FALSE,
+  control = list(adapt_delta = DELTA, max_treedepth = TREE),
+  seed = SEED
+)
+```
+
+```{r, message=FALSE, warning=FALSE}
+pp_check(maucec54, nsamples = 100) + scale_y_continuous(trans='sqrt')
+summary(maucec54)
+```
+
+
+
+### Comparison {-}
+Based on using a 95% z score, M3 and M4 perform equally well. As M3 is the simpler model, we use it as our candidate model.
+```{r, message=FALSE, warning=FALSE}
+loo_maucec51 = loo(maucec51)
+loo_maucec52 = loo(maucec52)
+loo_maucec53 = loo(maucec53)
+loo_maucec54 = loo(maucec54)
+loo_compare(loo_maucec51, loo_maucec52, loo_maucec53, loo_maucec54)
+
+```

@@ -1,0 +1,753 @@
+{
+	"auto_complete":
+	{
+		"selected_items":
+		[
+			[
+				"evaluat",
+				"evaluation_projects\t(Dockerfile)"
+			],
+			[
+				"design",
+				"201901221338 Experimental Design.md"
+			],
+			[
+				"exp",
+				"201901221338 Experimental Design.md"
+			],
+			[
+				"le",
+				"@lewisDoesBugPrediction2013"
+			]
+		]
+	},
+	"buffers":
+	[
+	],
+	"build_system": "",
+	"build_system_choices":
+	[
+	],
+	"build_varint": "",
+	"command_palette":
+	{
+		"height": 71.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"json",
+				"Pretty JSON: Format (Pretty Print) JSON"
+			],
+			[
+				"json pre",
+				"Pretty JSON: Format and Sort JSON"
+			],
+			[
+				"zkexp",
+				"ZK: Expand Overview Note"
+			],
+			[
+				"show",
+				"ZK: Show Images"
+			],
+			[
+				"prev",
+				"Markdown Preview: Preview in Browser"
+			],
+			[
+				"preview",
+				"Markdown Preview: Preview in Browser"
+			],
+			[
+				"pretty",
+				"Pretty JSON: Format and Sort JSON"
+			],
+			[
+				"zk bi",
+				"ZK: Auto-Bib"
+			],
+			[
+				"search",
+				"ZK: Search for tag combination"
+			],
+			[
+				"prettyso",
+				"Pretty JSON: Format and Sort JSON"
+			],
+			[
+				"json prett",
+				"Pretty JSON: Format and Sort JSON"
+			],
+			[
+				"json form",
+				"Pretty JSON: Format and Sort JSON"
+			],
+			[
+				"remove",
+				"Package Control: Remove Package"
+			],
+			[
+				"theme",
+				"UI: Select Theme"
+			],
+			[
+				"install ",
+				"Package Control: Install Package"
+			],
+			[
+				"install",
+				"Package Control: Install Package"
+			],
+			[
+				"insta",
+				"Package Control: Install Package"
+			],
+			[
+				"trail",
+				"Trailing Spaces: Delete Trailing Spaces"
+			],
+			[
+				"pre",
+				"Markdown Preview: Preview in Browser"
+			],
+			[
+				"markdo",
+				"Markdown Preview: Preview in Browser"
+			],
+			[
+				"previe",
+				"Markdown Preview: Preview in Browser"
+			],
+			[
+				"trailing",
+				"Trailing Spaces: Delete Trailing Spaces"
+			],
+			[
+				"sear",
+				"ZK: Search for tag combination"
+			],
+			[
+				"todo",
+				"TodoReview: Project Files"
+			],
+			[
+				"todorev",
+				"TodoReview: Project Files"
+			],
+			[
+				"aut",
+				"ZK: Auto-Bib"
+			],
+			[
+				"new",
+				"ZK: New Zettel Note"
+			],
+			[
+				"bib",
+				"ZK: Auto-Bib"
+			],
+			[
+				"au",
+				"ZK: Auto-Bib"
+			],
+			[
+				"trailin",
+				"Trailing Spaces: Delete Trailing Spaces"
+			],
+			[
+				"auto",
+				"ZK: Auto-Bib"
+			],
+			[
+				"zk au",
+				"ZK: Auto-Bib"
+			],
+			[
+				"remoe",
+				"Package Control: Remove Package"
+			],
+			[
+				"reloead",
+				"SublimeLinter: Reload SublimeLinter and its Plugins"
+			],
+			[
+				"sublimelinter",
+				"SublimeLinter: Show All Errors"
+			],
+			[
+				"li",
+				"SublimeLinter: Show All Errors"
+			],
+			[
+				"lin",
+				"SublimeLinter: Show All Errors"
+			],
+			[
+				"linter",
+				"SublimeLinter: Toggle Highlights"
+			],
+			[
+				"lint",
+				"SublimeLinter: Toggle Highlights"
+			],
+			[
+				"sideb",
+				"View: Toggle Side Bar"
+			],
+			[
+				"instal",
+				"Package Control: Install Package"
+			],
+			[
+				"zk sea",
+				"ZK: Search for tag combination"
+			],
+			[
+				"convert",
+				"Indentation: Convert to Spaces"
+			],
+			[
+				"zk mode",
+				"ZK: Enter Zettelkasten Mode"
+			],
+			[
+				"zettelkaste",
+				"ZK: Enter Zettelkasten Mode"
+			],
+			[
+				"ze",
+				"ZK: Enter Zettelkasten Mode"
+			],
+			[
+				"overv",
+				"ZK: Expand Overview Note"
+			],
+			[
+				"zk note",
+				"ZK: Expand Overview Note"
+			],
+			[
+				"minim",
+				"View: Toggle Minimap"
+			],
+			[
+				"inser",
+				"ZK: Insert Link"
+			],
+			[
+				"inse",
+				"ZK: Insert Link"
+			],
+			[
+				"zk search",
+				"ZK: Search for tag combination"
+			],
+			[
+				"insert",
+				"ZK: Insert Link"
+			],
+			[
+				"zk ne",
+				"ZK: New Zettel Note"
+			],
+			[
+				"minima",
+				"View: Toggle Minimap"
+			],
+			[
+				"sidebar",
+				"View: Toggle Side Bar"
+			],
+			[
+				"zk",
+				"ZK: Insert Link"
+			],
+			[
+				"zk lin",
+				"ZK: Insert Link"
+			],
+			[
+				"zet",
+				"ZK: Enter Zettelkasten Mode"
+			],
+			[
+				"comment",
+				"Toggle Block Comment"
+			],
+			[
+				"search for ",
+				"ZK: Search for tag combination"
+			],
+			[
+				"zk mo",
+				"ZK: Enter Zettelkasten Mode"
+			],
+			[
+				"remo",
+				"Package Control: Remove Package"
+			],
+			[
+				"scheme",
+				"UI: Select Color Scheme"
+			],
+			[
+				"zett",
+				"ZK: Enter Zettelkasten Mode"
+			],
+			[
+				"new n",
+				"ZK: New Zettel Note"
+			],
+			[
+				"upgr",
+				"Package Control: Upgrade Package"
+			],
+			[
+				"add re",
+				"Package Control: Add Repository"
+			],
+			[
+				"archi",
+				"Tasks: Archive"
+			],
+			[
+				"inst",
+				"Package Control: Install Package"
+			],
+			[
+				"isntall",
+				"Package Control: Install Package"
+			]
+		],
+		"width": 412.0
+	},
+	"console":
+	{
+		"height": 626.0,
+		"history":
+		[
+			"cls",
+			"clear",
+			"import urllib.request,os,hashlib; h = '6f4c264a24d933ce70df5dedcf1dcaee' + 'ebe013ee18cced0ef93d5f746d80ef60'; pf = 'Package Control.sublime-package'; ipp = sublime.installed_packages_path(); urllib.request.install_opener( urllib.request.build_opener( urllib.request.ProxyHandler()) ); by = urllib.request.urlopen( 'http://packagecontrol.io/' + pf.replace(' ', '%20')).read(); dh = hashlib.sha256(by).hexdigest(); print('Error validating download (got %s instead of %s), please try manual install' % (dh, h)) if dh != h else open(os.path.join( ipp, pf), 'wb' ).write(by)"
+		]
+	},
+	"distraction_free":
+	{
+		"menu_visible": true,
+		"show_minimap": false,
+		"show_open_files": false,
+		"show_tabs": false,
+		"side_bar_visible": false,
+		"status_bar_visible": false
+	},
+	"file_history":
+	[
+		"/home/m0hawk/Documents/personal/zettelkasten/.saved_searches.zks",
+		"/home/m0hawk/Documents/personal/zettelkasten/.search_results.zkr",
+		"/home/m0hawk/Documents/personal/configs/setup.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200226161449 Bewerbungen.md",
+		"/home/m0hawk/Documents/linespots/evaluation_projects/final-config.json",
+		"/home/m0hawk/Documents/personal/zettelkasten/201902050844 Mareile Kleidermaße.md",
+		"/home/m0hawk/Documents/linespots/linespots-docker/final-config.json",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200207150901 Linespots Paper Draft.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200408112807 Fault Prediction Overview.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200408122324 Linespots.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200424103627 Granularity.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200408113332 Fault Prediction.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20191017114254 Linespots Paper Preparation.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200408120506 Bugspots.md",
+		"/home/m0hawk/Documents/linespots/evaluation_projects/test-config.json",
+		"/home/m0hawk/Documents/linespots/linespots-docker/Dockerfile",
+		"/home/m0hawk/Downloads/foo.html",
+		"/home/m0hawk/Documents/linespots/linespots-docker/run.sh",
+		"/home/m0hawk/Documents/personal/cv/Otto/data-scientist-motivation.md",
+		"/home/m0hawk/Documents/personal/cv/Otto/SD-Black-Unicorns.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20190208183314 Schuhgrößen Max.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20190327201613 Academia Overview.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20190423232507 Linespots Performance Experiment Design.md",
+		"/home/m0hawk/Downloads/foo.md",
+		"/home/m0hawk/Documents/linespots/evaluation_projects/final-config2.json",
+		"/home/m0hawk/Documents/personal/zettelkasten/201805031755 Loss Function.md",
+		"/home/m0hawk/Documents/linespots/docker-res/final-config.json",
+		"/home/m0hawk/Documents/linespots/docker-res/final-config-docker.json",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200409142624 Identification of fix inducing commits.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200408120553 Past Faults.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20190209133742 Cost of Faults.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20190506171020 Determining Faulty Elements.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20190506171612 Determining when a Fault was located or Predicted.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20190327205442 Manuscrript Overview.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/201902041158 Master Thesis Supervision Notes Collection.md",
+		"/home/m0hawk/Documents/linespots/linespots-docker/README.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200402115511 Linespots Paper.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200310132248 Bewerbungsideen.md",
+		"/home/m0hawk/Documents/personal/cv/moia/questions.md",
+		"/home/m0hawk/Documents/linespots/linespots-lib/projects.json",
+		"/home/m0hawk/Documents/linespots/linespots-lib/old_projects.json",
+		"/home/m0hawk/Documents/linespots/evaluation_projects/monica-config.json",
+		"/home/m0hawk/Documents/linespots/evaluation_projects/electron-config.json",
+		"/home/m0hawk/Documents/linespots/evaluation_projects/karma-config.json",
+		"/home/m0hawk/Documents/linespots/evaluation_projects/metrics-test.json",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200308111953 Ich Kleidermaße.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/mein_zk.sublime-workspace",
+		"/run/media/m0hawk/28F843BBF8438652/Users/m0hawk/Documents/zettelkasten/20200310132248 Bewerbungsideen.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20190327205644 Personal Overview.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200109204701 Bench Press Routine.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200106142359 Allied Vision Anschreiben.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200121092756 Viperdev Newsletter w4 2020.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20190712145414 Cost Effectiveness Curve.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200109205847 Post Treatment Bias.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200117103557 Viperdev Test Project.md",
+		"/home/m0hawk/Documents/personal/configs/sublime_zk/packages.md",
+		"-",
+		"/home/m0hawk/Documents/personal/zettelkasten/reily.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200108110842 reily.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20200108110858 reily.md",
+		"/home/m0hawk/Documents/personal/zettelkasten/20190308221453 Zettelkasten - Zettel Einordnen und Verknüpfen.md",
+		"/home/m0hawk/Documents/fp/linespots-analysis/DAGs.R",
+		"/home/m0hawk/Documents/fp/evaluation_projects/final-config.json",
+		"/home/m0hawk/Documents/fp/evaluation_projects/test.json",
+		"/home/m0hawk/Documents/notes.TODO",
+		"/home/m0hawk/Downloads/v8-3.14/PKGBUILD",
+		"/home/m0hawk/Downloads/v8-r/PKGBUILD",
+		"/C/Users/m0hawk/AppData/Roaming/Sublime Merge/Packages/User/Commit Message.sublime-settings",
+		"/D/Dropbox/zk/20190308214805 Zettelkasten - Verzetteln.md",
+		"/D/Dropbox/zk/20190308213257 Zettelkasten - Lesen und Verstehen.md",
+		"/C/Windows/System32/drivers/etc/hosts",
+		"/C/Users/m0hawk/Dropbox/zk/20190208183314 Schuhgrößen.md",
+		"/C/Users/m0hawk/Dropbox/zk/20190308200122 Zettelkasten Neue Notiz Arbeitsschritte.md",
+		"/C/Users/m0hawk/Dropbox/zk/20190308214805 Zettelkasten - Verzetteln.md",
+		"/C/Users/m0hawk/Dropbox/zk/20190308221453 Zettelkasten - Zettel Einordnen und Verknüpfen.md",
+		"/C/Users/m0hawk/Dropbox/zk/20190308213257 Zettelkasten - Lesen und Verstehen.md",
+		"/C/Users/m0hawk/Dropbox/zk/201902050844 Mareile Kleidermaße.md",
+		"/C/Users/m0hawk/Dropbox/zk/201901271337 Master Thesis.md",
+		"/C/Users/m0hawk/Documents/configs/sublime_zk/packages.md",
+		"/C/Users/m0hawk/Dropbox/zk/20190208152449 Master Thesis Supervision Note 3.md",
+		"/C/Users/m0hawk/Dropbox/zk/201902041232 Linespots Bayesian Weighting Function.md",
+		"/C/Users/m0hawk/Desktop/hosts",
+		"/C/Users/m0hawk/Desktop/sc2keys.ahk",
+		"/C/Users/m0hawk/Desktop/sc2keys.txt",
+		"/C/Users/m0hawk/Documents/StarCraft II/My Keys.skl",
+		"/C/Users/m0hawk/AppData/Roaming/Sublime Text 3/Packages/User/sublime_zk.sublime-settings",
+		"/C/Users/m0hawk/Dropbox/zk/references.bib",
+		"/C/Users/m0hawk/AppData/Roaming/Sublime Text 3/Packages/User/HighlightWords.sublime-settings",
+		"/home/m0hawk/Dropbox/zk/20190208152449 Master Thesis Supervision Note 3.md",
+		"/home/m0hawk/Dropbox/zk/20190208183314 Schuhgrößen.md",
+		"/home/m0hawk/Dropbox/zk/20190208162248 Master Thesis Reading List.md",
+		"/home/m0hawk/Dropbox/zk/20190209133742 Cost of Faults.md",
+		"/home/m0hawk/Dropbox/zk/20190209133421 Reading Notes: [@liEvaluatingSoftwareDefect2019].md",
+		"/home/m0hawk/Dropbox/zk/201902041158 Master Thesis Supervision Notes Collection.md",
+		"/home/m0hawk/Dropbox/zk/201901271337 Master Thesis.md",
+		"/home/m0hawk/Dropbox/zk/201902041150 Master Thesis RQ1.md",
+		"/home/m0hawk/Dropbox/zk/references.bib",
+		"/home/m0hawk/Dropbox/zk/201901281258 Master Thesis Supervision Note 2.md",
+		"/home/m0hawk/Dropbox/zk/201902041232 Linespots Bayesian Weighting Function.md",
+		"/home/m0hawk/Dropbox/zk/201902041156 Master Thesis Supervision Note 1.md",
+		"/home/m0hawk/.config/sublime-text-3/Packages/User/TodoReview.sublime-settings",
+		"/home/m0hawk/Dropbox/zk/201901231049 Master Thesis RQ6.md",
+		"/home/m0hawk/Dropbox/zk/201902041156 Master Thesis Supervision Note.md",
+		"/home/m0hawk/Dropbox/zk/201901281258 Master Thesis Supervision Note.md",
+		"/home/m0hawk/Dropbox/zk/mein_zk.sublime-project",
+		"/home/m0hawk/Dropbox/zk/201902050844 Mareile Kleidermaße.md",
+		"/home/m0hawk/.config/sublime-text-3/Packages/TodoReview/TodoReview.sublime-settings",
+		"/D/Dropbox/zk/zotero/My Library/My Library.rdf",
+		"/D/JDL/501470-MIENRE/Mirror.Enchanting.Reflections-PLAZA/Readme.txt",
+		"/D/SSD Backup/Downloads/Positive Grid BIAS FX v1 3 3 1240 Incl Keygen-R2R/Positive.Grid.BIAS.FX.v1.3.3.1240.Incl.Keygen-R2R/R2R/R2R.txt",
+		"/C/Users/m0hawk-pc/AppData/Roaming/Sublime Text 3/Packages/User/trailing_spaces.sublime-settings",
+		"/C/Users/m0hawk-pc/AppData/Roaming/Sublime Text 3/Packages/User/SublimeLinter.sublime-settings",
+		"/C/Users/m0hawk-pc/AppData/Roaming/Sublime Text 3/Packages/User/sublime_zk_search.sublime-settings",
+		"/C/Users/m0hawk-pc/AppData/Roaming/Sublime Text 3/Packages/User/Preferences.sublime-settings",
+		"/C/Users/m0hawk-pc/AppData/Roaming/Sublime Text 3/Packages/User/sublime_zk.sublime-settings",
+		"/C/Users/m0hawk-pc/AppData/Roaming/Sublime Text 3/Packages/User/Package Control.sublime-settings",
+		"/C/Users/m0hawk-pc/Documents/configs/sublime_zk/packages.md",
+		"/C/Users/m0hawk-pc/AppData/Roaming/Sublime Text 3/Packages/User/Package Control.last-run",
+		"/C/Users/m0hawk-pc/AppData/Roaming/Sublime Text 3/Packages/User/HighlightWords.sublime-settings",
+		"/C/Users/m0hawk-pc/.ssh/id_ed25519.pub",
+		"/D/Dropbox/zk/201901231049 Master Thesis RQ6.md",
+		"/D/Dropbox/zk/201901311305 Master Thesis Schedule.md",
+		"/D/Dropbox/zk/201901221745 Bug Prediction Algorithm Acceptance.md",
+		"/D/Dropbox/zk/201901281258 Master Thesis Supervision Notes.md",
+		"/D/Dropbox/zk/201901271336 Master Thesis RQ7.md",
+		"/D/Dropbox/zk/201901221338 Experimental Design.md",
+		"/D/Dropbox/zk/201901271337 Master Thesis.md",
+		"/D/Dropbox/zk/201901311240 Reporting Experiments in Software Engineering.md"
+	],
+	"find":
+	{
+		"height": 22.0
+	},
+	"find_in_files":
+	{
+		"height": 334.0,
+		"where_history":
+		[
+		]
+	},
+	"find_state":
+	{
+		"case_sensitive": false,
+		"find_history":
+		[
+			"origins",
+			"depths",
+			"origins",
+			"mpc",
+			"commits",
+			"clang",
+			"CXX",
+			"War",
+			"gyp",
+			"127.0.0.1",
+			"p",
+			"\"",
+			"bug",
+			"todo",
+			"key",
+			"/",
+			"acces",
+			"shirt",
+			"acces",
+			"11",
+			"accessory",
+			"wusel",
+			"1_n_input",
+			"1 -",
+			"1",
+			"variation"
+		],
+		"highlight": true,
+		"in_selection": false,
+		"preserve_case": false,
+		"regex": false,
+		"replace_history":
+		[
+		],
+		"reverse": false,
+		"show_context": true,
+		"use_buffer2": true,
+		"whole_word": false,
+		"wrap": true
+	},
+	"groups":
+	[
+		{
+			"sheets":
+			[
+			]
+		}
+	],
+	"incremental_find":
+	{
+		"height": 22.0
+	},
+	"input":
+	{
+		"height": 126.0
+	},
+	"layout":
+	{
+		"cells":
+		[
+			[
+				0,
+				0,
+				1,
+				1
+			]
+		],
+		"cols":
+		[
+			0.0,
+			1.0
+		],
+		"rows":
+		[
+			0.0,
+			1.0
+		]
+	},
+	"menu_visible": true,
+	"output.diagnostics":
+	{
+		"height": 0.0
+	},
+	"output.find_results":
+	{
+		"height": 0.0
+	},
+	"pinned_build_system": "",
+	"project": "Analysis.sublime-project",
+	"replace":
+	{
+		"height": 40.0
+	},
+	"save_all_on_build": true,
+	"select_file":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"linespots pap",
+				"20200207150901 Linespots Paper Draft.md"
+			],
+			[
+				"bewerb",
+				"20200226161449 Bewerbungen.md"
+			],
+			[
+				"bewer",
+				"20200226161449 Bewerbungen.md"
+			],
+			[
+				"mareil",
+				"201902050844 Mareile Kleidermaße.md"
+			],
+			[
+				"schu",
+				"20190208183314 Schuhgrößen Max.md"
+			],
+			[
+				"paper",
+				"20191017114254 Linespots Paper Preparation.md"
+			],
+			[
+				"overvie",
+				"20190327201613 Academia Overview.md"
+			],
+			[
+				"linespots",
+				"20190423232507 Linespots Performance Experiment Design.md"
+			],
+			[
+				"schuh",
+				"20190208183314 Schuhgrößen Max.md"
+			],
+			[
+				"fault pred",
+				"20190506171612 Determining when a Fault was located or Predicted.md"
+			],
+			[
+				"over",
+				"20190327201613 Academia Overview.md"
+			],
+			[
+				"acade",
+				"20190327201613 Academia Overview.md"
+			],
+			[
+				"kleid",
+				"201902050844 Mareile Kleidermaße.md"
+			],
+			[
+				"kleiderm",
+				"201902050844 Mareile Kleidermaße.md"
+			],
+			[
+				"academi",
+				"20190327201613 Academia Overview.md"
+			],
+			[
+				"test",
+				"20200117103557 Viperdev Test Project.md"
+			],
+			[
+				"viper",
+				"20200117103557 Viperdev test project.md"
+			],
+			[
+				"bench",
+				"20200109204701 Bench Press Routine.md"
+			],
+			[
+				"reily",
+				"reily.md"
+			],
+			[
+				"maß",
+				"201902050844 Mareile Kleidermaße.md"
+			],
+			[
+				"kleider",
+				"201902050844 Mareile Kleidermaße.md"
+			],
+			[
+				"reading",
+				"20190208162248 Master Thesis Reading List.md"
+			],
+			[
+				"redin",
+				"20190208162248 Master Thesis Reading List.md"
+			],
+			[
+				"master thesis",
+				"201901271337 Master Thesis.md"
+			],
+			[
+				"supervi",
+				"201902041156 Master Thesis Supervision Note 1.md"
+			],
+			[
+				"supervisi",
+				"201902041156 Master Thesis Supervision Note.md"
+			],
+			[
+				"supevis",
+				"201901281258 Master Thesis Supervision Note.md"
+			],
+			[
+				"rq6",
+				"201901231049 Master Thesis RQ6.md"
+			],
+			[
+				"ex",
+				"201901221338 Experimental Design.md"
+			],
+			[
+				"",
+				"201804291606 Bayes Rule.md"
+			],
+			[
+				"exper",
+				"201901221338 Experimental Design.md"
+			]
+		],
+		"width": 0.0
+	},
+	"select_project":
+	{
+		"height": 0.0,
+		"last_filter": "",
+		"selected_items":
+		[
+		],
+		"width": 0.0
+	},
+	"select_symbol":
+	{
+		"height": 392.0,
+		"last_filter": "",
+		"selected_items":
+		[
+			[
+				"tree",
+				"mn_trackEvent"
+			]
+		],
+		"width": 592.0
+	},
+	"selected_group": 0,
+	"settings":
+	{
+	},
+	"show_minimap": true,
+	"show_open_files": false,
+	"show_tabs": true,
+	"side_bar_visible": true,
+	"side_bar_width": 213.0,
+	"status_bar_visible": true,
+	"template_settings":
+	{
+	}
+}
